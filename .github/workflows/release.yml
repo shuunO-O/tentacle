@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated version tag with passing main CI
+        required: true
+        type: string
+      draft:
+        description: Publish as draft instead of immediately setting latest
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tentacle-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release from verified main commit
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Check out release tooling and all existing tags
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve exact tagged source
+        id: target
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          from scripts.release_package import resolve_tag
+
+          tag = os.environ['REQUESTED_TAG'] or os.environ['GITHUB_REF_NAME']
+          target = resolve_tag(Path.cwd(), tag)
+          subprocess.run(['git', 'merge-base', '--is-ancestor', target['commit'], 'origin/main'], check=True)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('tag=' + target['version'] + '\ncommit=' + target['commit'] + '\n')
+          print(json.dumps(target))
+          PY
+
+      - name: Require passing main CI for the exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ steps.target.outputs.commit }}
+        run: python3 scripts/ci_evidence.py "$GITHUB_REPOSITORY" "$RELEASE_COMMIT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend and package release assets
+        env:
+          RELEASE_COMMIT: ${{ steps.target.outputs.commit }}
+          RELEASE_TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          git worktree add --detach tmp/frontend-src "$RELEASE_COMMIT"
+          trap 'git worktree remove --force tmp/frontend-src' EXIT
+          if [ -f tmp/frontend-src/frontend/package.json ]; then
+            npm --prefix tmp/frontend-src/frontend ci --no-audit --no-fund
+            TENTACLE_OUT_DIR="$PWD/tmp/web-static" npm --prefix tmp/frontend-src/frontend run build
+            python3 scripts/release_package.py build --tag "$RELEASE_TAG" --static-dir tmp/web-static --output tmp/release-bundle
+          else
+            python3 scripts/release_package.py build --tag "$RELEASE_TAG" --output tmp/release-bundle
+          fi
+
+      - name: Save release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ steps.target.outputs.tag }}-${{ steps.target.outputs.commit }}
+          path: tmp/release-bundle/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release and verify remote digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_PROMPT_DISABLED: '1'
+          PUBLISH_DRAFT: ${{ inputs.draft == true && '--draft' || '' }}
+        run: python3 scripts/publish_release.py tmp/release-bundle $PUBLISH_DRAFT

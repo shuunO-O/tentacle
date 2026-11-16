@@ -1,0 +1,107 @@
+/* Read-only subagent UI, synthetic HTTP/WS backend only. */
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '..'), output = path.join(root, 'tmp', 'subagents-ui');
+fs.mkdirSync(output, { recursive: true });
+const origin = 'http://127.0.0.1:18426';
+const server = spawn(path.join(root, '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python'), ['dev/preview.py', '--port', '18426'], { cwd: root, windowsHide: true, stdio: 'pipe' });
+let browser, page, log = '';
+server.stderr.on('data', chunk => { log += chunk; });
+(async () => {
+  try {
+    for (let i = 0; ; i++) {
+      try { if ((await fetch(origin + '/__preview__/state')).ok) break; } catch (_) {}
+      if (i >= 80 || server.exitCode !== null) throw Error(log || 'Preview not ready');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
+    page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    const errors = [], mutations = [];
+    page.on('pageerror', e => errors.push(e.message));
+    page.on('request', r => { if (r.url().includes('/api/subagents') && r.method() !== 'GET') mutations.push(r.method()); });
+    let changed = false, listReads = 0, idle = false, empty = false;
+    await page.route(origin + '/api/subagents', async route => {
+      listReads++;
+      const response = await route.fetch(), data = await response.json();
+      if (idle) data.tasks = data.tasks.map(task => ({ ...task, status: "completed" }));
+      if (empty) data.tasks = [];
+      if (changed && data.tasks?.[1]) data.tasks[1].result = '已更新的合成结果 <script>unsafe</script>';
+      await route.fulfill({ response, json: data });
+    });
+    await page.goto(origin);
+    await page.locator("#subagentPeek").waitFor();
+    assert.equal(await page.locator("#subagentPanel").isVisible(), false, "widget starts collapsed");
+    await page.screenshot({ path: path.join(output, "collapsed.png"), fullPage: true });
+    await page.locator("#subagentPeek").click();
+    await page.locator('.subagent-card').first().waitFor();
+    assert.equal(await page.locator('.subagent-card').count(), 3);
+    assert.ok(await page.locator('#subagentPeek').isVisible());
+    await page.locator("#subagentPanelClose").click();
+    await page.locator('#subagentPeek').click();
+    assert.ok(await page.locator("#subagentPanel").isVisible());
+    assert.ok((await page.locator('#subagentCards').innerText()).includes('已交给主 agent'));
+    const runningCard = page.locator('[data-subagent-id="' + 'a'.repeat(32) + '"]');
+    assert.ok((await runningCard.innerText()).includes('运行中'));
+    assert.equal(await runningCard.locator('.subagent-result').count(), 0);
+    changed = true;
+    await page.waitForFunction(() => document.querySelector('#subagentCards').textContent.includes('已更新的合成结果'), null, { timeout: 9000 });
+    assert.equal(await page.locator('#subagentCards script').count(), 0, 'task strings are escaped');
+    await page.screenshot({ path: path.join(output, 'cards.png'), fullPage: true });
+    await runningCard.click();
+    await page.locator('.subagent-turn').first().waitFor();
+    assert.equal(await page.locator('.subagent-turn').count(), 2);
+    assert.ok((await page.locator('#subagentDetail').innerText()).includes('继续核对边界情况'));
+    assert.equal(await page.locator('#subagentDetail button').count(), 1, 'only close control, no task operation');
+    await page.screenshot({ path: path.join(output, 'detail.png'), fullPage: true });
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#subagentDetail').isVisible(), false);
+    await page.reload();
+    await page.locator("#subagentPeek").waitFor();
+    assert.equal(await page.locator("#subagentPanel").isVisible(), false);
+    await page.locator("#subagentPeek").click();
+    await page.locator('.subagent-card').first().waitFor();
+    assert.equal(await page.locator('.subagent-card').count(), 3, 'reload does not duplicate tasks');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: path.join(output, "mobile-cards.png"), fullPage: true });
+    assert.ok(await page.locator("#subagentPanel").evaluate(e => e.clientWidth >= 280));
+    await page.locator('[data-subagent-id="' + 'b'.repeat(32) + '"]').click();
+    await page.locator('.subagent-turn').first().waitFor();
+    await page.screenshot({ path: path.join(output, 'mobile-detail.png'), fullPage: true });
+    assert.ok(await page.locator('#subagentDetail').evaluate(e => e.scrollWidth <= e.clientWidth));
+    await page.locator('#subagentDetailClose').click();
+    assert.ok(await page.locator('#subagentPanel').evaluate(e => e.scrollWidth <= e.clientWidth));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.locator('[data-view="stats"]').click();
+    assert.equal(await page.locator("#subagentPeek").isVisible(), false, "only shown in chat");
+    assert.equal(await page.locator("#subagentPanel").isVisible(), false);
+    const readsWhenHidden = listReads;
+    await page.waitForTimeout(5300);
+    assert.equal(listReads, readsWhenHidden, 'task polling stops outside chat');
+    await page.locator('[data-view="chat"]').click();
+    await page.waitForFunction(() => document.querySelector('.subagent-card') !== null);
+    idle = true;
+    await page.evaluate(() => window.TentacleSubagents.refresh());
+    await page.waitForFunction(() => !document.querySelector('#subagentPeek').classList.contains('has-activity'));
+    assert.ok(await page.locator('#subagentPeek').isVisible(), 'idle entry remains visible');
+    await page.screenshot({ path: path.join(output, 'idle.png'), fullPage: true });
+    empty = true;
+    await page.evaluate(() => window.TentacleSubagents.refresh());
+    await page.locator('#subagentPeek').click();
+    await page.waitForFunction(() => document.querySelector('#subagentNotice').textContent.includes('暂无子代理任务'));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('#subagentPanel').isVisible(), false);
+    await page.evaluate(() => window.TentacleSubagents.reset());
+    assert.equal(await page.locator('#subagentPanel').isVisible(), false);
+    assert.equal(await page.locator('#subagentCards').innerText(), '');
+    assert.equal(await page.locator('#subagentDetailBody').innerText(), '');
+    assert.deepEqual(errors, []);
+    assert.deepEqual(mutations, []);
+    console.log(JSON.stringify({ passed: true, screenshots: output }));
+  } catch (error) {
+    if (page) await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {});
+    throw error;
+  } finally { if (browser) await browser.close(); server.kill('SIGINT'); }
+})().catch(error => { console.error(error); process.exitCode = 1; });

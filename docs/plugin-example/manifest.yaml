@@ -1,0 +1,22 @@
+id: example-helper
+name: 示例插件模板
+version: "1.0.0"
+description: 展示本地插件 manifest.yaml 的权限声明、config_schema、工具、命令、Skill 与 Hook 写法
+author: tentacle
+entrypoint: plugin.py:setup
+permissions:
+  - tools:register
+  - skills:provide
+  - prompts:append
+  - commands:register
+  - hooks:observe
+  - fs:plugin_data
+config_schema:
+  prefix:
+    type: string
+    label: 输出前缀
+    default: "[example]"
+    help: 示例插件返回消息时附带的前缀文本
+requires_env: []
+skills_dir: skills
+prompt_file: prompts/guild.md

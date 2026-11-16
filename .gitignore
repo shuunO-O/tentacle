@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.dev-python/
+
+# 密钥（禁止提交）
+.env
+.tentacle-config.lock
+config.yaml
+
+# 本地环境覆盖（代理地址、GCP 项目号、QQ openid 等只属于单机，禁止提交）
+config.local.yaml
+*.local.yaml
+
+# 人格/记忆/关系等隐私人格文件（禁止提交）
+prompt/guild.md
+prompt/master.md
+prompt/memory.md
+prompt/soul.md
+prompt/situation.md
+prompt/.situation-*.tmp
+
+# 本机 Agent 技能
+/skills/
+
+# 运行时日志与临时文件
+logs/
+tmp/
+
+# 运行时数据目录（对话历史/WebUI 设置/日记/私人内容等，全部隐私敏感 + 可重建，禁止提交）
+data/
+
+# 自签 SSL 证书（本地 HTTPS 用，禁止提交）
+certs/
+
+# IDE
+.idea/
+.vscode/
+.deveco/
+.zcode/
+.workbuddy/
+
+# 鸿蒙源码已迁入独立仓库，忽略旧目录残留。
+/TentacleApp/
+
+# 前端依赖、构建产物与静态发布目录（由 frontend Vite 构建至 web/static/）
+frontend/node_modules/
+frontend/dist/
+/web/static/
+
+# 本地 Agent 协作规则（含单机工作区约定，不入库）
+AGENTS.md

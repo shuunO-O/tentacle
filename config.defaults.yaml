@@ -1,0 +1,266 @@
+# 随版本更新的默认配置。单机设置写入 config.yaml，不要直接修改本文件。
+# 普通对象递归覆盖；列表/null 整体替换；模型接入配置整体覆盖。详见 docs/CONFIGURATION.md。
+config_version: 2
+
+providers: {}
+models: {}
+
+roles:
+  concept_alignment:
+    model: null
+    selectable: false
+  concept_dedup:
+    model: null
+    selectable: false
+  chat:
+    model: null
+    explicit_cache:
+      enabled: true
+      rebuild_below: 0.9
+      target_ratio: 0.99
+      min_reuses: 20
+      active_window_seconds: 300
+      idle_after_seconds: 600
+      ttl_seconds: 600
+      min_tokens: 4096
+      state_path: data/gemini_explicit_cache.json
+    max_iterations: 50
+    tools:
+      enabled:
+      - send_message
+      - keep_in_mind
+      - situation_notes
+      - skills_list
+      - skill_view
+      - memory_database_save
+      - memory_database_search
+      - plan_view
+      - goal_update
+      - plugins_list
+      - plugin_install_local
+      - mcp_stage_server
+      - maintenance
+      - task_update
+      - schedule_update
+      - schedule_list
+      - terminal_run
+      - terminal_interact
+      - file_edit
+      - file_read
+      - self_rollback
+      - web_search
+      - web_fetch
+      - subagent_create
+      - subagent_attach
+      - subagent_followup
+      - subagent_view
+      - subagent_cancel
+      - subagent_archive
+    selectable: true
+    overrides:
+      retry_base_seconds: 1.0
+      stream: true
+      reasoning_effort: medium
+      max_retries: 3
+  embedding:
+    model: null
+    user_id: embedding
+    max_iterations: 1
+    tools:
+      enabled: []
+    overrides:
+      stream: false
+  memory_extractor:
+    model: null
+    user_id: memory_extractor
+    max_iterations: 1
+    tools:
+      enabled: []
+    overrides:
+      response_format:
+        type: json_object
+      stream: false
+      temperature: 0.3
+  compress:
+    model: null
+    user_id: compress
+    max_iterations: 3
+    tools:
+      enabled: []
+    overrides:
+      stream: false
+      temperature: 0.3
+
+app:
+  timezone: "Asia/Shanghai"  # 程序日历时区，独立于服务器；更改后重启生效
+  user_name: ""              # 提示词与上下文标签里的称呼，留空用 user
+  agent_name: ""             # 提示词与上下文标签里的 Agent 名字，留空用 assistant
+
+# 公开网页工具后端；工具名固定为 web_search / web_fetch。
+
+web_tools:
+  provider: "parallel"             # parallel / tavily / deepseek
+  api_key_env: ""                  # 留空按 provider 自动选用 PARALLEL_API_KEY / TAVILY_API_KEY / DEEPSEEK_API_KEY
+  timeout_seconds: 60
+  max_output_chars: 40000
+
+# 视频获取与模型/文件存储独立；远程地址由部署环境填写。
+
+media_inputs:
+  auto_bilibili: true
+  download:
+    backend: local             # local / http_jobs（协议 1 任务服务）
+    base_url: ""               # 例如 https://worker.example/api/v1/media
+    profile: bilibili-480p-v1
+    timeout_seconds: 360       # 远程等待与领取总预算，最大 360 秒
+    proxy: ""                  # 默认直连，不继承进程代理
+    api_key_env: ""            # 可选 Bearer 令牌环境变量名
+
+heartbeat:
+  enabled: true                 # 新主机安装先关闭；完成模型配置后在 Web 启用
+  interval_minutes: 60
+  message: "心跳"
+  include_in_progress_tasks: false  # 普通心跳可选附带进行中任务；完整目标仍每 24 小时回顾
+  session_switch:
+    enabled: true
+    window_start: "01:00"          # 按 app.timezone；含开始、不含结束，支持跨午夜
+    window_end: "07:00"
+    message: "本轮心跳是切换 session 前的近况交接。请先用 situation_notes 的 read 读取旧近况，结合当前完整上下文重新整理，再用 write 保存完整新版本；即使无需修改也请完整写入确认。保留仍有用的状态和必要的不确定性，合并或删除过时内容。本轮正常完成、近况保存成功且没有用户输入打断后，程序将切换 session；交接未完成则保留当前 session，在下一次符合窗口条件的心跳重新交接。"
+  service_tier: "flex"        # 适用于 Gemini Interactions 和 Cloud generateContent；聊天沿用模型档位
+  model_timeout_seconds: 300  # 每次主模型请求总预算（含重试），不强制取消正在执行的工具
+  max_retries: 1              # Flex 失败后结束本次心跳，不自动升档
+
+# 定时任务引擎（scheduler.py 使用；与心跳正交：心跳注入上下文，定时任务静默执行）
+
+scheduler:
+  catch_up_grace_hours: 24   # once 任务停机错过触发后的补跑宽限期（小时），超出直接归档
+  interval_catch_up_grace_hours: 6   # interval 任务停机补跑宽限期（小时）：窗口内错过的触发点逐点补跑，窗外跳过
+
+# 外部 coding 子代理（Linux）。需另行安装 DSH，任务在 workspace 的子目录执行。
+subagents:
+  enabled: false
+  db_path: "data/subagents.db"
+  max_concurrency: 1
+  max_pending_turns: 50
+  max_turns_per_task: 100
+  max_notification_depth: 8
+  max_runtime_seconds: 1800
+  wait_timeout_seconds: 60
+  max_output_chars: 65536
+  max_context_chars: 30000
+  max_query_rows: 200
+
+# 独立配置段，旧版运行时回退时可忽略。
+coding:
+  dsh_binary: "dsh"
+  dsh_home: "data/dsh"
+
+# 真实终端配置（tools/terminal.py 使用）
+
+terminal:
+  shell: ""              # 留空则用 $SHELL，其次 /bin/bash
+  cwd: ""                # 会话默认工作目录，留空则用 TENTACLE_HOME/workspace
+  default_timeout: 30    # terminal_run 默认超时秒数
+  deny_commands:         # 安全黑名单：交互式/监视类程序（命中即拒绝执行）
+    - "top"
+    - "htop"
+    - "btop"
+    - "vim"
+    - "vi"
+    - "nano"
+    - "less"
+    - "more"
+    - "watch"
+    - "ssh"
+    - "telnet"
+    - "ftp"
+
+# WebUI 配置（run_web.py 使用）
+
+webui:
+  host: "0.0.0.0"
+  port: 8420
+
+# 附件默认保留在本地，远端上传器按需配置。
+files:
+  proxy: ""
+  uploader: null
+  expires_after_seconds: 2592000
+  refresh_margin_seconds: 86400
+  uploaders: {}
+
+memory:
+  ladybug:
+    path: "data/memory.lbdb"
+  embedding:
+    model_role: "embedding"
+    dimensions: 1024
+  search:
+    top_k: 3                  # Person/Concept召回数
+    event_top_k: 8            # Event详细结果数，1..20
+    content_mode: excerpt     # excerpt短摘录 / full完整原文
+    include_index: true       # 附带后续候选的ID与摘要，不占追查名额
+    index_top_k: 24           # 候选索引数，0..64
+  # 为对齐角色绑定评分模型后可启用；仅作用于之后的新记忆写入。
+  concept_alignment:
+    enabled: false
+    model_role: concept_alignment
+    top_k: 5
+    same_probability: 0.95
+    different_probability: 0.90
+    timeout_seconds: 15
+    total_timeout_seconds: 60
+    max_concepts: 32
+  # Web 人工启动的历史 Concept 去重，独立于新记忆写入开关。
+  concept_dedup:
+    model_role: concept_dedup
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file:
+    enabled: true
+    path: "logs/agent.log"
+    max_bytes: 10485760
+    backup_count: 5
+
+plugins:
+  items:
+    browser:
+      enabled: true
+      trusted: true
+      config:
+        executable: ""
+        cdp_discovery_url: ""
+        cdp_discovery_timeout: 8
+        chrome_path: "~/.local/share/agent-browser/chrome-linux64/chrome"
+        skills_dir: ""
+        session: "tentacle"
+        headed: true
+        profile: "~/.local/share/agent-browser/tentacle-profile"
+        max_output: 15000
+        allow_eval: false
+        allowed_domains: []
+        args:
+          - "--no-sandbox"
+        timeout: 60
+    harmony:
+      enabled: false
+      trusted: true
+      config:
+        action_wait_seconds: 12
+        allow_alarms: true
+        allow_live_view: true
+    qqbot:
+      enabled: false
+      trusted: true
+      config:
+        app_id_env: "QQ_APP_ID"
+        client_secret_env: "QQ_CLIENT_SECRET"
+        allow_from: []
+        default_to: ""
+        proxy: ""
+        max_chunk: 4000
+        split_messages: true
+        split_max_segments: 3
+  mcp: {}

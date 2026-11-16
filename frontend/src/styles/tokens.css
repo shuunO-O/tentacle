@@ -1,0 +1,107 @@
+/* Semantic theme tokens matching Tentacle warm dark & paper light palettes. */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --t-bg: #1d1813;
+  --t-bg-sidebar: #16120e;
+  --t-bg-surface: #231d17;
+  --t-bg-elevated: #2b241c;
+  --t-bg-input: #272018;
+  --t-bg-hover: #332b21;
+  --t-bg-active: #3b3126;
+
+  --t-border: #3d342a;
+  --t-border-soft: #312a21;
+  --t-border-strong: #534638;
+
+  --t-fg: #ece5da;
+  --t-fg-dim: #ada291;
+  --t-fg-faint: #847b6c;
+
+  --t-accent: #d97757;
+  --t-accent-hover: #e58e6e;
+  --t-accent-fg: #fff9f5;
+  --t-accent-soft: rgba(217, 119, 87, 0.16);
+  --t-accent-ring: rgba(217, 119, 87, 0.34);
+
+  --t-user-bubble: #3a2f24;
+  --t-code-bg: #16120e;
+
+  --t-ok: #7fa66a;
+  --t-ok-soft: rgba(127, 166, 106, 0.16);
+  --t-warn: #d4a359;
+  --t-warn-soft: rgba(212, 163, 89, 0.16);
+  --t-danger: #cf6a5f;
+  --t-danger-soft: rgba(207, 106, 95, 0.16);
+  --t-info: #6d9bc3;
+  --t-info-soft: rgba(109, 155, 195, 0.16);
+
+  --t-shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --t-shadow-pop: 0 20px 52px rgba(0, 0, 0, 0.48);
+
+  --t-scrollbar-thumb: rgba(138, 128, 114, 0.38);
+  --t-scrollbar-thumb-hover: rgba(173, 162, 145, 0.62);
+
+  /* Graph canvas tokens */
+  --t-graph-bg: #191410;
+  --t-graph-grid: rgba(236, 229, 218, 0.05);
+  --t-graph-edge: rgba(173, 162, 145, 0.36);
+  --t-graph-label: #ece5da;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --t-bg: #faf7f2;
+  --t-bg-sidebar: #f1ebe1;
+  --t-bg-surface: #ffffff;
+  --t-bg-elevated: #f5efe6;
+  --t-bg-input: #ffffff;
+  --t-bg-hover: #eae2d5;
+  --t-bg-active: #e2d7c7;
+
+  --t-border: #dfd6c7;
+  --t-border-soft: #eae3d7;
+  --t-border-strong: #c8bba8;
+
+  --t-fg: #241f1a;
+  --t-fg-dim: #665d52;
+  --t-fg-faint: #8c8274;
+
+  --t-accent: #c85c3a;
+  --t-accent-hover: #b44c2b;
+  --t-accent-fg: #ffffff;
+  --t-accent-soft: rgba(200, 92, 58, 0.12);
+  --t-accent-ring: rgba(200, 92, 58, 0.28);
+
+  --t-user-bubble: #efe7da;
+  --t-code-bg: #f4eee4;
+
+  --t-ok: #4d7c3f;
+  --t-ok-soft: rgba(77, 124, 63, 0.12);
+  --t-warn: #b07b26;
+  --t-warn-soft: rgba(176, 123, 38, 0.12);
+  --t-danger: #c0483d;
+  --t-danger-soft: rgba(192, 72, 61, 0.12);
+  --t-info: #3a709d;
+  --t-info-soft: rgba(58, 112, 157, 0.12);
+
+  --t-shadow-soft: 0 10px 28px rgba(36, 31, 26, 0.08);
+  --t-shadow-pop: 0 18px 44px rgba(36, 31, 26, 0.16);
+
+  --t-scrollbar-thumb: rgba(102, 93, 82, 0.25);
+  --t-scrollbar-thumb-hover: rgba(102, 93, 82, 0.45);
+
+  --t-graph-bg: #f7f3ec;
+  --t-graph-grid: rgba(36, 31, 26, 0.05);
+  --t-graph-edge: rgba(102, 93, 82, 0.34);
+  --t-graph-label: #241f1a;
+}
+
+:root {
+  --t-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --t-font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Consolas, monospace;
+}

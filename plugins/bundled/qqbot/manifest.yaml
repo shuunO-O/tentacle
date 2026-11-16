@@ -1,0 +1,59 @@
+id: qqbot
+name: QQ 官方机器人
+version: "1.0.0"
+description: 接入 QQ 官方开放平台 C2C 私聊，支持文本与文件/图片收发，并通过 send_message(platform=qq) 出站。
+author: tentacle
+entrypoint: plugin.py:setup
+permissions:
+  - channels:register
+  - background:task
+  - fs:plugin_data
+  - fs:workspace_read
+  - fs:workspace_write
+  - network:outbound
+config_schema:
+  app_id_env:
+    type: env
+    label: QQ App ID 环境变量
+    default: "QQ_APP_ID"
+    required: true
+    help: 存储 QQ 机器人 AppID 的 .env 环境变量名。
+  client_secret_env:
+    type: env
+    label: QQ Client Secret 环境变量
+    default: "QQ_CLIENT_SECRET"
+    required: true
+    help: 存储 QQ 机器人 AppSecret 的 .env 环境变量名。
+  allow_from:
+    type: string_list
+    label: C2C 私聊白名单
+    default: []
+    help: 留空表示接收所有符合平台权限的私聊用户；每行填写一个 QQ user_openid。
+  default_to:
+    type: string
+    label: 默认主动发送对象
+    default: ""
+    help: 可选 fallback openid；留空则仅发送给最近一次私聊对象。
+  proxy:
+    type: proxy
+    label: HTTP 代理地址
+    default: ""
+    help: 显式代理地址（如 http://127.0.0.1:7890）；留空直连，不继承环境变量代理。
+  max_chunk:
+    type: integer
+    label: 单条文本上限（字符）
+    default: 4000
+    minimum: 100
+    maximum: 20000
+  split_messages:
+    type: boolean
+    label: 按空行分段发送
+    default: true
+    help: 开启后按空行语义分段发送（代码块内空行不切分）。
+  split_max_segments:
+    type: integer
+    label: 最大分段数
+    default: 3
+    minimum: 1
+    maximum: 20
+    help: 拆出段数超过该值视为整篇长文不拆（保护主动消息额度）。

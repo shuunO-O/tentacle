@@ -1,0 +1,36 @@
+id: harmony
+name: 鸿蒙手机联动
+version: "1.0.0"
+description: 接入 Tentacle Harmony 客户端：设备注册授权、一次性闹钟队列与回执、实况窗同步与华为云推送。
+author: tentacle
+entrypoint: plugin.py:setup
+permissions:
+  - tools:register
+  - web:routes
+  - hooks:mutate
+  - fs:plugin_data
+  - network:outbound
+optional_env:
+  - HUAWEI_PUSH_CREDENTIALS_FILE
+  - HUAWEI_PUSH_PROJECT_ID
+  - HUAWEI_PUSH_KEY_ID
+  - HUAWEI_PUSH_SUB_ACCOUNT
+  - HUAWEI_PUSH_PRIVATE_KEY
+  - HUAWEI_PUSH_AUDIENCE
+  - HUAWEI_PUSH_TEST_MESSAGE
+config_schema:
+  action_wait_seconds:
+    type: number
+    label: 闹钟回执等待超时（秒）
+    default: 12
+    minimum: 1
+    maximum: 60
+    help: 下发闹钟后等待客户端提交回执的最长同步时间；超时后返回 pending，需打开手机确认。
+  allow_alarms:
+    type: boolean
+    label: 允许向手机下发闹钟
+    default: true
+  allow_live_view:
+    type: boolean
+    label: 允许实况窗与推送同步
+    default: true
