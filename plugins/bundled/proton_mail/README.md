@@ -21,10 +21,8 @@ proton account login
 
 插件按以下顺序探测可执行文件：
 
-1. 插件配置 `executable`（WebUI `/plugins` 中填写）。
-2. `PATH` 中的 `proton`（`shutil.which`）。
-3. `~/.local/bin/proton`。
-4. `/usr/local/bin/proton`、`/usr/bin/proton`。
+1. 若插件配置了 `executable`（WebUI `/plugins` 中填写），**仅校验该路径**（无效时直接报错，不静默回退到其他路径）。
+2. 留空时依次探测：`PATH` 中的 `proton`（`shutil.which`）→ `~/.local/bin/proton` → `/usr/local/bin/proton` → `/usr/bin/proton`。
 
 找不到二进制时，`status` / `list` / `read` / `send` 都会返回安装与登录引导，而不是抛出异常。
 
@@ -44,6 +42,7 @@ proton account login
 | --- | --- | --- |
 | `executable` | 空 | proton 可执行文件路径；留空自动探测。 |
 | `heartbeat_unread_limit` | `5` | 心跳简报最多列出的未读邮件数（`0`–`20`）；设为 `0` 关闭自动简报。 |
+| `allow_send` | `false` | 是否允许通过 `send` 操作发送邮件；默认只读，避免受不可信邮件诱导误发外联邮件。 |
 
 ---
 
@@ -72,9 +71,9 @@ proton account login
 {"operation": "send", "to": "alice@example.com", "subject": "周报", "body": "本周进展见下……"}
 ```
 
-- `limit` 超出 `1`–`50` 时回退为默认值 `10`。
-- `send` 通过参数数组调用 proton CLI，不经过 shell；发送超时为 45 秒。
-- 所有命令均带 `--no-input --no-color`，避免在无人值守环境中等待交互或输出颜色控制符。
+- `limit` 超出 `1`–`50` 时回退为默认值 `10`；`read` 正文超长（> 20000 字符）时自动截断。
+- `send` 需开启配置 `allow_send: true`，通过参数数组调用 proton CLI，不经过 shell；发送超时为 45 秒。
+- 所有命令均在后台线程异步执行并带 `--no-input --no-color`，避免阻塞事件循环、等待交互或输出颜色控制符。
 
 ---
 
@@ -84,8 +83,8 @@ proton account login
 
 ```text
 📬 Proton 邮箱当前有 3 封未读邮件：
-  1. [Alice] 项目进度 (ID: 5bH2mQxK...)
-  2. [GitHub] New issue (ID: 9cKd2mPq...)
+  1. [Alice] 项目进度 (ID: 5bH2mQxK)
+  2. [GitHub] New issue (ID: 9cKd2mPq)
 ```
 
 - 没有未读、未安装、未登录或查询超时时静默跳过，不影响心跳主流程。
@@ -99,6 +98,7 @@ proton account login
 | --- | --- |
 | `tools:register` | 注册 `proton_mail` 工具。 |
 | `hooks:mutate` | 在 `before_heartbeat` 中注入未读简报。 |
+| `network:outbound` | 通过 proton-cli 访问 Proton API 收发邮件。 |
 
 插件不申请 `fs:plugin_data`，不额外保存邮件、凭据或索引；登录态与本地缓存完全由 proton-cli 管理。邮件正文仅在工具调用结果中返回给当前会话，是否写入记忆由 Tentacle 的记忆策略决定。
 

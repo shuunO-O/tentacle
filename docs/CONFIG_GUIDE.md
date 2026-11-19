@@ -62,7 +62,7 @@ Tentacle 的配置采用“仓库默认值 + 本机 `$TENTACLE_HOME/config/confi
 ## 6. 插件与 MCP 扩展：`plugins`
 
 - **`plugins.items.<id>`**：管理内置与用户扩展插件的启用状态 `enabled`、权限信任状态 `trusted`、禁用工具列表 `disabled_tools` 及插件专属配置 `config`。
-  - 默认内置插件包含 **`browser`**（默认开启 `enabled: true`）、**`harmony`**（默认关闭 `enabled: false`）、**`qqbot`**（默认关闭 `enabled: false`）。说明见 [内置插件与插件管理](BUNDLED_PLUGINS.md)。
+  - 默认内置插件包含 **`browser`**（默认开启 `enabled: true`）、**`harmony`**（默认关闭 `enabled: false`）、**`proton_mail`**（默认关闭 `enabled: false`）、**`qqbot`**（默认关闭 `enabled: false`）。说明见 [内置插件与插件管理](BUNDLED_PLUGINS.md)。
 - **`plugins.mcp.<id>`**：外部 `stdio` 或 `streamable_http` MCP 服务配置（含环境变量名映射、Bearer 凭据变量名与工具屏蔽列表）。
 
 ---

@@ -63,6 +63,12 @@ def attach_plugins(app, authenticated):
         "status": "disabled",
         "routes": [],
     })
+    proton_item, proton_envs = _make_bundled_item("proton_mail", tools=[])
+    proton_item.update({
+        "enabled": False,
+        "saved_enabled": False,
+        "status": "disabled",
+    })
     qqbot_item, qqbot_envs = _make_bundled_item("qqbot", tools=[])
     qqbot_item.update({
         "enabled": False,
@@ -70,7 +76,7 @@ def attach_plugins(app, authenticated):
         "status": "disabled",
         "channels": [],
     })
-    env_values = {name: False for name in ["WEATHER_API_KEY", *browser_envs, *harmony_envs, *qqbot_envs]}
+    env_values = {name: False for name in ["WEATHER_API_KEY", *browser_envs, *harmony_envs, *proton_envs, *qqbot_envs]}
 
     state = {
         "revision": "preview-plugins-rev-1",
@@ -80,6 +86,7 @@ def attach_plugins(app, authenticated):
         "plugins": [
             browser_item,
             harmony_item,
+            proton_item,
             qqbot_item,
             {
                 "id": "weather-brief",

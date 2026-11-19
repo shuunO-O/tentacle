@@ -257,6 +257,7 @@ plugins:
       config:
         executable: ""
         heartbeat_unread_limit: 5
+        allow_send: false
     qqbot:
       enabled: false
       trusted: true

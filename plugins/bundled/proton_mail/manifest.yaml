@@ -7,6 +7,7 @@ entrypoint: plugin.py:setup
 permissions:
   - tools:register
   - hooks:mutate
+  - network:outbound
 config_schema:
   executable:
     type: string
@@ -20,3 +21,8 @@ config_schema:
     minimum: 0
     maximum: 20
     help: before_heartbeat 时最多列出的未读邮件数量；设为 0 可关闭自动简报。
+  allow_send:
+    type: boolean
+    label: 允许发送邮件
+    default: false
+    help: 默认只读，避免受不可信邮件内容诱导误发外联邮件；开启后允许通过 send 操作发送邮件。
