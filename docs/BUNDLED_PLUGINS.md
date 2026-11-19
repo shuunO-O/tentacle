@@ -51,6 +51,19 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 
 ---
 
+### `proton_mail` — Proton 加密邮箱助手（[manifest.yaml](../plugins/bundled/proton_mail/manifest.yaml) · [README](../plugins/bundled/proton_mail/README.md)）
+
+基于 [proton-cli](https://github.com/roman-16/proton-cli) 访问 Proton 端到端加密邮箱，无需 Proton Bridge 或桌面环境（默认关闭：`enabled: false`）；工具名为 **`p_proton_mail__proton_mail`**，支持 `status`、`list`、`read`、`send` 四种操作，并在 `before_heartbeat` 时自动注入未读邮件简报。
+
+- **安装与登录**：`curl -fsSL https://raw.githubusercontent.com/roman-16/proton-cli/main/scripts/install.sh | sh`，然后执行 `proton account login`。
+- **二进制探测**：优先使用插件配置 `executable`，其次依次探测 `PATH`、`~/.local/bin/proton`、`/usr/local/bin/proton` 与 `/usr/bin/proton`；未安装时工具会返回安装与登录引导。
+- **常用配置项**：
+  - `executable`：proton 可执行文件路径，留空自动探测。
+  - `heartbeat_unread_limit`：心跳简报最多列出的未读邮件数（`0`–`20`），设为 `0` 关闭自动简报。
+- **数据边界**：不申请 `fs:plugin_data`，登录态与本地缓存均由 proton-cli 管理；插件不额外保存邮件或凭据。
+
+---
+
 ### `qqbot` — QQ 官方机器人（[manifest.yaml](../plugins/bundled/qqbot/manifest.yaml)）
 
 接入 QQ 官方开放平台机器人，以 C2C 私聊方式接收消息并回复（默认关闭：`enabled: false`）；数据与最近私聊对象持久化于 `TENTACLE_HOME/data/plugins/qqbot/chat.json`。启用并配置有效凭据后，主模型统一网关工具 `send_message` 会开放 `platform="qq"` 通道。

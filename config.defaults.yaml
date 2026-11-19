@@ -251,6 +251,12 @@ plugins:
         action_wait_seconds: 12
         allow_alarms: true
         allow_live_view: true
+    proton_mail:
+      enabled: false
+      trusted: true
+      config:
+        executable: ""
+        heartbeat_unread_limit: 5
     qqbot:
       enabled: false
       trusted: true

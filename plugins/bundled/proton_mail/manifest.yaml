@@ -1,0 +1,22 @@
+id: proton_mail
+name: Proton 邮箱助手
+version: "1.0.0"
+description: 基于 proton-cli 管理与收发 Proton 加密邮箱，支持账户状态、未读/邮件列表、阅读全文与发送邮件，并在心跳时注入未读邮件简报。
+author: suubai
+entrypoint: plugin.py:setup
+permissions:
+  - tools:register
+  - hooks:mutate
+config_schema:
+  executable:
+    type: string
+    label: proton 可执行文件路径
+    default: ""
+    help: 留空自动探测（PATH > ~/.local/bin/proton > /usr/local/bin/proton > /usr/bin/proton）。
+  heartbeat_unread_limit:
+    type: integer
+    label: 心跳未读简报条数
+    default: 5
+    minimum: 0
+    maximum: 20
+    help: before_heartbeat 时最多列出的未读邮件数量；设为 0 可关闭自动简报。

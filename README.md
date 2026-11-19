@@ -11,7 +11,7 @@ Tentacle 是一个面向 **Linux / WSL** 自托管部署的持久上下文 AI Ag
 - **插件沙盒、外部渠道网关与 MCP**：
   - 本地扩展插件经 `PluginContext` 最小权限门控加载，自定义扩展路由统一挂载至 `/api/plugins/ext/<id>/*` 并继承主站鉴权。
   - 外部消息发送统一收口为 `send_message` 通道网关（无活跃外部通道插件时自动向模型隐藏）。
-  - 随包内置三款插件：`browser`（`agent-browser` 浏览器自动化）、`qqbot`（QQ 官方机器人 C2C 私聊，默认关闭）与 `harmony`（鸿蒙客户端联动，默认关闭）。
+  - 随包内置四款插件：`browser`（`agent-browser` 浏览器自动化）、`proton_mail`（Proton 加密邮箱助手，默认关闭）、`qqbot`（QQ 官方机器人 C2C 私聊，默认关闭）与 `harmony`（鸿蒙客户端联动，默认关闭）。
   - 支持接入外部 `stdio` / `streamable_http` MCP 工具服务并在 WebUI 热重连。
 - **正交后台调度与编程子代理**：内置定时调度器静默执行工具调用、一次性子进程命令与预约唤醒，不污染主对话上下文；可选集成 `@deepseek-ai/dsh` 编程子代理实现双向任务接力与原生工作区审批，并提供受黑名单约束的交互终端。
 - **完整的 WebUI 与安全运维边界**：内置 React 19 工作台（对话、图谱、配置、插件、子代理、终端、用量与维护面板）；采用双层鉴权（Web 密码 + 设备授权门控）、纯写入 `.env` 凭据隔离、配置差异预览与自动备份回滚、加密迁移导出及 Linux `systemd` 自动校验升级/回退机制。
@@ -86,7 +86,7 @@ mkdir -p "$TENTACLE_HOME"/{config,data,prompt,skills,workspace,logs,.cache,tmp}
 | `memory/` | LadybugDB 图谱记忆、混合检索、概念对齐与历史去重 |
 | `attachments/` | 图片、音视频、文档多模态解析与受控附件导出 |
 | `runtime/` | 心跳、定时调度、目标管理、用量统计、迁移备份与更新维护客户端 |
-| `plugins/` | 插件权限沙盒、MCP 客户端与内置插件（`browser` / `harmony` / `qqbot`） |
+| `plugins/` | 插件权限沙盒、MCP 客户端与内置插件（`browser` / `proton_mail` / `harmony` / `qqbot`） |
 | `tools/` | 自动发现工具模块与统一外部通道网关 `send_message` |
 | `subagents/` | 可选 DSH 编程子代理托管 |
 | `web/` / `frontend/` | FastAPI + WebSocket 后端与 React 19 WebUI |
