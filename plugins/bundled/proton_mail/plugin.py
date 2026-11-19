@@ -18,6 +18,7 @@ INSTALL_COMMAND = (
 )
 _DEFAULT_LIST_LIMIT = 10
 _MAX_LIST_LIMIT = 50
+_MAX_MARK_BATCH = 50
 _DEFAULT_HEARTBEAT_LIMIT = 5
 _MAX_HEARTBEAT_LIMIT = 20
 _MAX_READ_OUTPUT = 20000
@@ -25,6 +26,41 @@ _MAX_ERROR_OUTPUT = 2000
 _MAX_INLINE_TEXT = 200
 _SYSTEM_PROTON_PATHS = ("/usr/local/bin/proton", "/usr/bin/proton")
 _CONTROL_WS_RE = re.compile(r"[\r\n\t\x00-\x1f\x7f]+")
+
+
+def _validate_message_id(raw: Any) -> tuple[str | None, str | None]:
+    message_id = str(raw or "").strip()
+    if not message_id:
+        return None, "请提供 message_id。"
+    if message_id.startswith("-") or any(ch.isspace() or ord(ch) < 32 for ch in message_id):
+        return None, "message_id 格式无效（不能以 '-' 开头或包含空白/控制字符）。"
+    return message_id, None
+
+
+def _collect_message_ids(args: dict) -> tuple[list[str], str | None]:
+    raw_items: list[Any] = []
+    if args.get("message_id") is not None and str(args.get("message_id")).strip():
+        raw_items.append(args.get("message_id"))
+    raw_list = args.get("message_ids")
+    if raw_list is not None:
+        if not isinstance(raw_list, list):
+            return [], "message_ids 必须为邮件 ID 字符串数组。"
+        raw_items.extend(raw_list)
+    if not raw_items:
+        return [], "请提供 message_id 或 message_ids。"
+
+    ids: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        mid, err = _validate_message_id(item)
+        if err or not mid:
+            return [], err or "message_id 格式无效。"
+        if mid not in seen:
+            seen.add(mid)
+            ids.append(mid)
+    if len(ids) > _MAX_MARK_BATCH:
+        return [], f"单次最多批量标记 {_MAX_MARK_BATCH} 封邮件。"
+    return ids, None
 
 
 def _coerce_int(value: Any, default: int) -> int:
@@ -194,8 +230,8 @@ def setup(ctx: Any) -> None:
 
     async def mail_tool(args: dict) -> str:
         operation = str(args.get("operation") or "list").strip().lower()
-        if operation not in {"status", "list", "read", "send"}:
-            return f"不支持的操作: {operation}，请使用 status / list / read / send。"
+        if operation not in {"status", "list", "read", "mark_read", "mark_unread", "send"}:
+            return f"不支持的操作: {operation}，请使用 status / list / read / mark_read / mark_unread / send。"
 
         executable = _find_proton(configured_executable)
         if executable is None:
@@ -264,18 +300,40 @@ def setup(ctx: Any) -> None:
             return "\n".join(lines)
 
         if operation == "read":
-            message_id = str(args.get("message_id") or "").strip()
-            if not message_id:
-                return "读取失败：请提供 message_id。"
-            if message_id.startswith("-") or any(ch.isspace() or ord(ch) < 32 for ch in message_id):
-                return "读取失败：message_id 格式无效（不能以 '-' 开头或包含空白/控制字符）。"
+            message_id, err = _validate_message_id(args.get("message_id"))
+            if err or not message_id:
+                return f"读取失败：{err}"
 
             code, stdout, stderr = await asyncio.to_thread(
                 _run_proton, executable, ["mail", "messages", "get", message_id]
             )
             if code != 0:
                 return _failure_message("读取邮件", stdout, stderr)
-            return _truncate(stdout.strip()) if stdout.strip() else "（邮件内容为空）"
+
+            body_text = _truncate(stdout.strip()) if stdout.strip() else "（邮件内容为空）"
+            should_mark_read = True if args.get("mark_read") is None else bool(args.get("mark_read"))
+            if should_mark_read:
+                mark_code, mark_out, mark_err = await asyncio.to_thread(
+                    _run_proton, executable, ["mail", "messages", "mark", "read", message_id]
+                )
+                if mark_code != 0:
+                    detail = _truncate((mark_err or mark_out).strip() or "未知错误", 300)
+                    body_text += f"\n\n[提示：邮件已读取，但自动标记已读失败：{detail}]"
+            return body_text
+
+        if operation in {"mark_read", "mark_unread"}:
+            ids, err = _collect_message_ids(args)
+            if err:
+                action_name = "标记已读" if operation == "mark_read" else "标记未读"
+                return f"{action_name}失败：{err}"
+            target_state = "read" if operation == "mark_read" else "unread"
+            state_label = "已读" if operation == "mark_read" else "未读"
+            code, stdout, stderr = await asyncio.to_thread(
+                _run_proton, executable, ["mail", "messages", "mark", target_state, *ids]
+            )
+            if code != 0:
+                return _failure_message(f"标记邮件为{state_label}", stdout, stderr)
+            return f"已将 {len(ids)} 封邮件标记为{state_label}：{', '.join(ids)}"
 
         if not allow_send:
             return (
@@ -321,15 +379,19 @@ def setup(ctx: Any) -> None:
         name="proton_mail",
         description=(
             "管理与收发 Proton 加密邮箱（基于 proton-cli）：status 查看账户状态，"
-            "list 查看收件箱/未读邮件，read 阅读邮件全文，send 发送邮件（需配置开启 allow_send）。"
+            "list 查看收件箱/未读邮件，read 阅读邮件全文（默认自动标记已读），"
+            "mark_read / mark_unread 标记已读或未读，send 发送邮件（需配置开启 allow_send）。"
         ),
         parameters={
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["status", "list", "read", "send"],
-                    "description": "操作类型：status（账户状态）、list（邮件列表）、read（读邮件）、send（发邮件）。",
+                    "enum": ["status", "list", "read", "mark_read", "mark_unread", "send"],
+                    "description": (
+                        "操作类型：status（账户状态）、list（邮件列表）、read（读邮件，默认标为已读）、"
+                        "mark_read（标记已读）、mark_unread（标记未读）、send（发邮件）。"
+                    ),
                 },
                 "unread_only": {
                     "type": "boolean",
@@ -341,7 +403,16 @@ def setup(ctx: Any) -> None:
                 },
                 "message_id": {
                     "type": "string",
-                    "description": "仅 read 时必填：邮件 ID。",
+                    "description": "read 时必填；mark_read / mark_unread 时可传单个邮件 ID。",
+                },
+                "message_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "仅 mark_read / mark_unread 时有效：批量标记的邮件 ID 列表（单次最多 50 封）。",
+                },
+                "mark_read": {
+                    "type": "boolean",
+                    "description": "仅 read 时有效：读取后是否自动标记为已读（默认 true）。",
                 },
                 "to": {
                     "type": "string",

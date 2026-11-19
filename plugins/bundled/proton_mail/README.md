@@ -54,7 +54,9 @@ proton account login
 | --- | --- | --- |
 | `status` | 查看邮箱地址、用户名、会话解锁状态与容量使用。 | — |
 | `list` | 列出收件箱邮件，默认 10 封，最多 50 封。 | `unread_only`、`limit` |
-| `read` | 读取指定邮件全文（纯文本渲染）。 | `message_id` |
+| `read` | 读取指定邮件全文（纯文本渲染），默认读取后自动标记为已读。 | `message_id`、`mark_read` |
+| `mark_read` | 将指定一封或多封邮件标记为已读（单次最多 50 封）。 | `message_id` / `message_ids` |
+| `mark_unread` | 将指定一封或多封邮件标记为未读（单次最多 50 封）。 | `message_id` / `message_ids` |
 | `send` | 发送纯文本邮件。 | `to`、`subject`、`body` |
 
 示例：
@@ -68,10 +70,14 @@ proton account login
 ```
 
 ```json
+{"operation": "mark_read", "message_ids": ["5bH2mQxK", "9cKd2mPq"]}
+```
+
+```json
 {"operation": "send", "to": "alice@example.com", "subject": "周报", "body": "本周进展见下……"}
 ```
 
-- `limit` 超出 `1`–`50` 时回退为默认值 `10`；`read` 正文超长（> 20000 字符）时自动截断。
+- `limit` 超出 `1`–`50` 时回退为默认值 `10`；`read` 正文超长（> 20000 字符）时自动截断；若只需预览不想消未读，传 `"mark_read": false`。
 - `send` 需开启配置 `allow_send: true`，通过参数数组调用 proton CLI，不经过 shell；发送超时为 45 秒。
 - 所有命令均在后台线程异步执行并带 `--no-input --no-color`，避免阻塞事件循环、等待交互或输出颜色控制符。
 

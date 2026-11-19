@@ -1,7 +1,7 @@
 id: proton_mail
 name: Proton 邮箱助手
 version: "1.0.0"
-description: 基于 proton-cli 管理与收发 Proton 加密邮箱，支持账户状态、未读/邮件列表、阅读全文与发送邮件，并在心跳时注入未读邮件简报。
+description: 基于 proton-cli 管理与收发 Proton 加密邮箱，支持账户状态、未读/邮件列表、阅读全文、标记已读/未读与发送邮件，并在心跳时注入未读邮件简报。
 author: suubai
 entrypoint: plugin.py:setup
 permissions:

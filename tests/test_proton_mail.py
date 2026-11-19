@@ -53,12 +53,17 @@ class FakeContext:
 
 def _write_fake_proton(tmp_path: Path) -> Path:
     script = tmp_path / "proton"
+    log_path = tmp_path / "calls.jsonl"
     script.write_text(
         f"#!{sys.executable}\n"
+        f"LOG_PATH = {str(log_path)!r}\n"
         """import json
 import sys
 
 args = [item for item in sys.argv[1:] if item not in {"--no-input", "--no-color"}]
+with open(LOG_PATH, "a", encoding="utf-8") as fh:
+    fh.write(json.dumps(args) + "\\n")
+
 if args[:2] == ["account", "get"]:
     print(json.dumps({
         "email": "user@example.com",
@@ -98,6 +103,13 @@ elif args[:3] == ["mail", "messages", "get"]:
         print("A" * 25000)
     else:
         print("Subject: Read subject\\n\\nHello from Proton.")
+elif args[:4] == ["mail", "messages", "mark", "read"]:
+    if "mark_fail_msg" in args[4:]:
+        print("temporary api error", file=sys.stderr)
+        sys.exit(1)
+    print("Marked as read.")
+elif args[:4] == ["mail", "messages", "mark", "unread"]:
+    print("Marked as unread.")
 elif args[:3] == ["mail", "messages", "send"]:
     print(json.dumps({"sent": True}))
 else:
@@ -152,7 +164,7 @@ def test_binary_detection_prefers_config_then_path_then_home_without_fallback(pr
     assert proton_module._find_proton() == str(path_binary)
 
 
-@pytest.mark.parametrize("operation", ["status", "list", "read", "send"])
+@pytest.mark.parametrize("operation", ["status", "list", "read", "mark_read", "mark_unread", "send"])
 async def test_missing_binary_returns_install_and_login_guidance(proton_module, operation):
     ctx = FakeContext()
     proton_module.setup(ctx)
@@ -199,13 +211,36 @@ async def test_tool_status_list_read_send_with_fake_cli(proton_module, tmp_path)
 
     content = await tool({"operation": "read", "message_id": "message123456"})
     assert "Hello from Proton." in content
+    assert "自动标记已读失败" not in content
+
+    # read 默认自动调用 mark read；传 mark_read=False 时不调用 mark read
+    peek = await tool({"operation": "read", "message_id": "message234567", "mark_read": False})
+    assert "Hello from Proton." in peek
+
+    # 自动标已读失败时仍保留邮件正文并附带提示
+    mark_fail = await tool({"operation": "read", "message_id": "mark_fail_msg"})
+    assert "Hello from Proton." in mark_fail
+    assert "自动标记已读失败" in mark_fail
 
     huge = await tool({"operation": "read", "message_id": "huge_message"})
     assert "输出过长，已截断" in huge
     assert len(huge) < 21000
 
+    marked = await tool({"operation": "mark_read", "message_id": "m1", "message_ids": ["m1", "m2"]})
+    assert "已将 2 封邮件标记为已读：m1, m2" in marked
+
+    unmarked = await tool({"operation": "mark_unread", "message_ids": ["m2"]})
+    assert "已将 1 封邮件标记为未读：m2" in unmarked
+
     sent = await tool({"operation": "send", "to": "dave@example.com", "subject": "Hi", "body": "Body"})
     assert "邮件已成功发送至 dave@example.com" in sent
+
+    import json as _json
+    calls = [_json.loads(line) for line in (tmp_path / "calls.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert ["mail", "messages", "mark", "read", "message123456"] in calls
+    assert ["mail", "messages", "mark", "read", "message234567"] not in calls
+    assert ["mail", "messages", "mark", "read", "m1", "m2"] in calls
+    assert ["mail", "messages", "mark", "unread", "m2"] in calls
 
 
 async def test_tool_security_guards_readonly_and_invalid_inputs(proton_module, tmp_path):
@@ -226,6 +261,10 @@ async def test_tool_security_guards_readonly_and_invalid_inputs(proton_module, t
     assert "不支持的操作" in await tool({"operation": "delete"})
     assert "message_id 格式无效" in await tool({"operation": "read", "message_id": "--help"})
     assert "message_id 格式无效" in await tool({"operation": "read", "message_id": "id with space"})
+    assert "请提供 message_id 或 message_ids" in await tool({"operation": "mark_read"})
+    assert "message_id 格式无效" in await tool({"operation": "mark_read", "message_ids": ["--all"]})
+    assert "message_ids 必须为邮件 ID 字符串数组" in await tool({"operation": "mark_unread", "message_ids": "m1"})
+    assert "单次最多批量标记 50 封邮件" in await tool({"operation": "mark_read", "message_ids": [f"m{i}" for i in range(51)]})
     assert "收件人 to 不能为空" in await tool({"operation": "send", "subject": "s", "body": "b"})
     assert "收件人 to 格式无效" in await tool({"operation": "send", "to": "--flag", "subject": "s", "body": "b"})
     assert "收件人 to 格式无效" in await tool({"operation": "send", "to": "a@example.com\nb@example.com", "subject": "s", "body": "b"})

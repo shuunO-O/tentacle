@@ -53,7 +53,7 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 
 ### `proton_mail` — Proton 加密邮箱助手（[manifest.yaml](../plugins/bundled/proton_mail/manifest.yaml) · [README](../plugins/bundled/proton_mail/README.md)）
 
-基于 [proton-cli](https://github.com/roman-16/proton-cli) 访问 Proton 端到端加密邮箱，无需 Proton Bridge 或桌面环境（默认关闭：`enabled: false`）；工具名为 **`p_proton_mail__proton_mail`**，支持 `status`、`list`、`read`、`send` 四种操作，并在 `before_heartbeat` 时自动注入未读邮件简报。
+基于 [proton-cli](https://github.com/roman-16/proton-cli) 访问 Proton 端到端加密邮箱，无需 Proton Bridge 或桌面环境（默认关闭：`enabled: false`）；工具名为 **`p_proton_mail__proton_mail`**，支持 `status`、`list`、`read`（默认读后自动标已读）、`mark_read`、`mark_unread`、`send` 操作，并在 `before_heartbeat` 时自动注入未读邮件简报。
 
 - **安装与登录**：`curl -fsSL https://raw.githubusercontent.com/roman-16/proton-cli/main/scripts/install.sh | sh`，然后执行 `proton account login`。
 - **二进制探测**：若填写 `executable` 则仅校验该路径；留空时依次探测 `PATH`、`~/.local/bin/proton`、`/usr/local/bin/proton` 与 `/usr/bin/proton`；未安装时工具会返回安装与登录引导。
