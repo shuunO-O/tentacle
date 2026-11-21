@@ -66,6 +66,9 @@ def test_browser_neko_validators_and_renderers():
     compile(proxy_py, "cdp-proxy.py", "exec")
     assert "9222" in proxy_py and "9223" in proxy_py
 
+    policies = json.loads(browser_neko.render_chromium_policies())
+    assert policies["DeveloperToolsAvailability"] == 1
+
     cfg = browser_neko.NekoConfig(
         install_dir="/var/lib/tentacle-browser",
         bind="127.0.0.1",
@@ -82,6 +85,7 @@ def test_browser_neko_validators_and_renderers():
     assert '"127.0.0.1:9222:9222"' in compose
     assert '"52000:52000/udp"' in compose
     assert '"52000:52000/tcp"' in compose
+    assert "./policies.json:/etc/chromium/policies/managed/policies.json:ro" in compose
     assert 'NEKO_SERVER_PROXY: "true"' in compose
     assert "NEKO_WEBRTC_UDPMUX: 52000" in compose
     assert "NEKO_WEBRTC_TCPMUX: 52000" in compose
@@ -154,6 +158,7 @@ def test_browser_neko_cli_install_no_start_and_tentacle_config_sync(tmp_path):
     assert (install_dir / "docker-compose.yaml").is_file()
     assert (install_dir / "chromium.conf").is_file()
     assert (install_dir / "cdp-proxy.py").is_file()
+    assert (install_dir / "policies.json").is_file()
     assert (install_dir / "reverse-proxy.example.conf").is_file()
     assert (install_dir / ".env").is_file()
     assert (install_dir / "profile").is_dir()

@@ -218,6 +218,17 @@ def config_from_plugin_dict(
     )
 
 
+def render_chromium_policies() -> str:
+    """生成覆盖 Neko 镜像默认策略的 policies.json，允许 DevTools / CDP 附加。"""
+    policies = {
+        "DeveloperToolsAvailability": 1,
+        "DefaultBrowserSettingEnabled": False,
+        "MetricsReportingEnabled": False,
+        "PromotionalTabsEnabled": False,
+    }
+    return json.dumps(policies, ensure_ascii=False, indent=2) + "\n"
+
+
 def render_cdp_proxy_script() -> str:
     """生成容器内轻量 TCP 转发脚本（0.0.0.0:9222 -> 127.0.0.1:9223），兼容新版 Chromium 强制回环监听。"""
     return """#!/usr/bin/env python3
@@ -345,6 +356,8 @@ services:
       - "./profile:/home/neko/.config/chromium"
       - "./chromium.conf:{sup_target}:ro"
       - "./cdp-proxy.py:/etc/neko/cdp-proxy.py:ro"
+      - "./policies.json:/etc/chromium/policies/managed/policies.json:ro"
+      - "./policies.json:/etc/opt/chrome/policies/managed/policies.json:ro"
     environment:
 {env_block}
 """
@@ -471,6 +484,7 @@ def write_install_files(cfg: NekoConfig, *, rotate_passwords: bool = False) -> t
             pass
 
     creds, rotated = ensure_env_passwords(root / ".env", rotate=rotate_passwords)
+    _atomic_write(root / "policies.json", render_chromium_policies(), mode=0o644)
     _atomic_write(root / "cdp-proxy.py", render_cdp_proxy_script(), mode=0o644)
     _atomic_write(root / "chromium.conf", render_chromium_supervisord_conf(), mode=0o644)
     _atomic_write(root / "docker-compose.yaml", render_docker_compose(cfg), mode=0o644)
