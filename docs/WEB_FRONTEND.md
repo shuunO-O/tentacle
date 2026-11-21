@@ -9,7 +9,7 @@ Tentacle 的 WebUI 前端位于 `frontend/`（React 19 + TypeScript + Vite 6 + T
 - **对话工作台**（`/`、`/chat`）：WebSocket 实时流式输出、推理与工具轨迹折叠、多端消息气泡区分、斜杠命令与附件上传。
 - **记忆图谱与概念去重**（`/graph`、`/dedup`）：LadybugDB 图谱可视化浏览、分层骨架过滤、等价组审查与人工去重操作。
 - **系统配置中心**（`/config`）：供应商连接 → 模型目录 → 角色策略三层配置、远端模型读取、差异预览与备份回滚、纯写入 `.env` 凭据弹窗。
-- **插件与 MCP 管理**（`/plugins`）：统一开关与配置内置插件、审核用户本地插件权限、管理外部 `stdio` / `streamable_http` MCP 服务与凭据环境变量。
+- **插件与 MCP 管理**（`/plugins`、`/plugin/{plugin_id}`、`/browser`）：统一开关与配置内置插件（含 `browser` 的 Docker Neko 容器启停与反代配置查看）、审核用户本地插件权限、管理外部 `stdio` / `streamable_http` MCP 服务与凭据环境变量；配置了自定义 UI 的插件与填写了 `live_view_url` 的可视化浏览器页面统一归入左侧栏「插件页面」分组。
 - **编程子代理与终端**（`/subagents`、`/terminal`）：可选 DSH 任务列表与关联入口、嵌入式 `xterm.js` 交互终端。
 - **用量统计、运行状态、后台与设置**（`/usage`、`/status`、`/admin`、`/settings`）：Token 与供应商余额统计、心跳状态、数据库巡检、登录密码/设备授权管理及一次性加密迁移导出。
 

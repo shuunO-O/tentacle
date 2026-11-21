@@ -73,6 +73,6 @@
 ```powershell
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\python.exe -m ruff check .
-.\.venv\Scripts\python.exe -m pytest tests/test_plugins_core.py tests/test_plugins_mcp.py tests/test_plugins_hooks_services.py tests/test_plugins_channels_web.py tests/test_plugins_staging_and_api.py tests/test_browser.py tests/test_phone.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_plugins_core.py tests/test_plugins_mcp.py tests/test_plugins_hooks_services.py tests/test_plugins_channels_web.py tests/test_plugins_staging_and_api.py tests/test_browser.py tests/test_browser_neko.py tests/test_phone.py -q
 npm --prefix frontend run typecheck && npm --prefix frontend run test && npm --prefix frontend run build
 ```

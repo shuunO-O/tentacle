@@ -23,9 +23,9 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 封装 `agent-browser` CLI 控制本机 Docker Neko（Chromium + WebRTC + 本机回环 CDP），适用于需要登录态、页面点击/填表、视觉截图或人工随时接管的场景；暴露工具名为 **`p_browser__browser`**。
 
 - **一键部署与 WebUI 托管**：
-  - 首次在 Linux 服务器执行 `sudo tentacle browser install --install-docker` 即可完成 Docker Neko 容器与受控启停通道初始化，详见 [Docker Neko 可视化浏览器指南](BROWSER_NEKO.md)。
+  - 宿主机安装 `agent-browser`（`npm i -g agent-browser`，无需本地 Chrome），首次在 Linux 服务器执行 `sudo tentacle browser install --install-docker` 即可完成 Docker Neko 容器与受控启停通道初始化，详见 [Docker Neko 可视化浏览器指南](BROWSER_NEKO.md)。
   - 之后可直接在 WebUI `/plugins` 展开 `browser` 卡片修改全部 Neko 参数（`live_view_url`、`neko_bind`、`neko_http_port`、`neko_cdp_port`、`neko_mux_port`、`neko_nat_ip`、`neko_screen`、`neko_shm_size` 等），保存后直接点 **同步并启动 / 重启 / 停止** 管理容器。
-  - 填写 `live_view_url` 后，WebUI 左侧栏与命令面板会出现「可视化浏览器」直达/内嵌入口；留空则隐藏。
+  - 填写 `live_view_url` 并保存后（无需重启），WebUI 左侧栏 **「插件页面」** 分组与命令面板会立即显示 **「可视化浏览器」**（`/browser`）入口，卡片顶部也会提供 **「打开可视化界面」** 直达按钮；留空则自动隐藏。
 - **`agent-browser` 行为与安全配置项**：
   - `executable`：`agent-browser` 二进制路径（留空自动探测）。
   - `allowed_domains`：允许访问的域名白名单（在 `/plugins` 中**每行填写一个域名**，留空表示不限制）。
