@@ -31,7 +31,6 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
   - `allow_eval`：是否允许页面内 `eval` 脚本执行（默认关闭以降低脚本风险）。
   - `max_output` / `timeout`：单次命令输出上限与超时秒数。
 - **视觉截图**：调用工具时可配合 `screenshot_as_image: true` 让支持多模态的模型直接查看页面截图。
-- **实时可视化视口**：启用 `browser` 插件后，WebUI 侧边栏会提供 **浏览器视口** 页面（`/plugin/browser`），基于 `agent-browser stream` 按需连接本机实时画面流并支持鼠标点击/拖动、滚轮与键盘（含中文）交互，便于人工登录或处理页面验证。
 
 ---
 

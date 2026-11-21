@@ -1,18 +1,15 @@
 """Synthetic plugins & MCP management state for dev preview; never reads .env or TENTACLE_HOME."""
 
-import base64
 from copy import deepcopy
-import io
 import random
 import time
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from PIL import Image, ImageDraw
 
 from plugins.manifest import bundled_plugins_dir, parse_manifest
 from plugins.permissions import PERMISSION_CATALOG, describe_permissions
-from plugins.ui_bundle import SANDBOX_CSP, build_plugin_ui_document
+from plugins.ui_bundle import SANDBOX_CSP
 
 
 def _make_bundled_item(plugin_id: str, *, tools: list[dict], routes: list[str] | None = None) -> tuple[dict, list[str]]:
@@ -63,14 +60,6 @@ def attach_plugins(app, authenticated):
     browser_item, browser_envs = _make_bundled_item(
         "browser",
         tools=[{"raw_name": "browser", "name": "p_browser__browser", "enabled": True}],
-        routes=[
-            "/api/plugins/ext/browser/status",
-            "/api/plugins/ext/browser/stream/connect",
-            "/api/plugins/ext/browser/stream/disconnect",
-            "/api/plugins/ext/browser/stream/heartbeat",
-            "/api/plugins/ext/browser/input",
-            "/api/plugins/ext/browser/action",
-        ],
     )
     harmony_item, harmony_envs = _make_bundled_item("harmony", tools=[])
     harmony_item.update({
@@ -634,15 +623,6 @@ def attach_plugins(app, authenticated):
         if item is None:
             raise HTTPException(404, f"插件 {plugin_id} 未启用或未提供自定义页面")
         ui = item["ui"]
-        if plugin_id == "browser":
-            manifest = parse_manifest(bundled_plugins_dir() / "browser")
-            assert manifest.ui is not None
-            html_doc = build_plugin_ui_document(
-                bundled_plugins_dir() / "browser" / manifest.ui.dir,
-                manifest.ui.entry,
-            )
-        else:
-            html_doc = demo_ui_html
         return {
             "plugin_id": plugin_id,
             "name": (item.get("manifest") or {}).get("name", plugin_id),
@@ -651,7 +631,7 @@ def attach_plugins(app, authenticated):
             "description": ui.get("description") or "",
             "placement": ui.get("placement") or "sidebar",
             "has_routes": bool(item.get("routes")),
-            "html": html_doc,
+            "html": demo_ui_html,
         }
 
     @app.get("/api/plugins/{plugin_id}/ui/assets/{asset_path:path}", dependencies=[Depends(auth)])
@@ -703,273 +683,6 @@ def attach_plugins(app, authenticated):
             except Exception:
                 app.state.sockets.discard(socket)
         return {"ok": True}
-
-    # 合成 browser 实时视口预览状态（模拟无头 Chrome 画面流与交互）
-    browser_sim = {
-        "connected": False,
-        "seq": 0,
-        "width": 960,
-        "height": 540,
-        "url": "https://portal.example.test/verify",
-        "title": "Demo Verification Portal",
-        "tabs": [
-            {"tab_id": "t1", "label": None, "index": 0, "title": "Demo Verification Portal", "url": "https://portal.example.test/verify", "active": True},
-            {"tab_id": "t2", "label": None, "index": 1, "title": "Example Docs", "url": "https://docs.example.test/guide", "active": False},
-        ],
-        "next_tab_num": 3,
-        "active_tab": 0,
-        "input_focused": False,
-        "input_text": "tentacle-user",
-        "slider_x": 0.0,  # 0..1
-        "dragging_slider": False,
-        "verified": False,
-        "scroll_y": 0,
-        "last_click": None,
-        "clicks": 0,
-    }
-
-    async def _broadcast_plugin_event(plugin_id: str, event: str, payload: dict):
-        msg = {
-            "type": "plugin.ui_event",
-            "data": {
-                "plugin_id": plugin_id,
-                "event": event,
-                "payload": payload,
-            },
-        }
-        app.state.events.append(msg)
-        for socket in tuple(app.state.sockets):
-            try:
-                await socket.send_json(msg)
-            except Exception:
-                app.state.sockets.discard(socket)
-
-    def _render_browser_sim_frame() -> dict:
-        w, h = browser_sim["width"], browser_sim["height"]
-        img = Image.new("RGB", (w, h), (245, 243, 239))
-        draw = ImageDraw.Draw(img)
-
-        # 模拟网页顶栏
-        draw.rectangle([0, 0, w, 54], fill=(34, 31, 28))
-        draw.text((24, 20), f"HEADLESS CHROME PREVIEW  |  {browser_sim['url']}", fill=(237, 232, 224))
-        draw.text((w - 190, 20), f"scrollY: {browser_sim['scroll_y']}px  clicks: {browser_sim['clicks']}", fill=(175, 168, 158))
-
-        # 居中卡片
-        cy = 96 - min(60, max(-40, browser_sim["scroll_y"] // 4))
-        card = [180, cy, w - 180, cy + 360]
-        draw.rounded_rectangle(card, radius=14, fill=(255, 255, 255), outline=(214, 207, 198), width=2)
-        draw.text((216, cy + 26), "Interactive Headless Browser Viewport (Synthetic Preview)", fill=(34, 31, 28))
-        draw.text((216, cy + 50), "Click input box to type, drag the slider right, or scroll wheel.", fill=(112, 105, 97))
-
-        # 输入框 [216, cy + 92, w - 216, cy + 136]
-        inp_box = [216, cy + 92, w - 216, cy + 136]
-        inp_outline = (201, 122, 74) if browser_sim["input_focused"] else (196, 189, 180)
-        draw.rounded_rectangle(inp_box, radius=8, fill=(250, 248, 245), outline=inp_outline, width=2)
-        cursor = "|" if browser_sim["input_focused"] else ""
-        shown_text = (browser_sim["input_text"] or "")[-48:]
-        draw.text((232, cy + 108), f"Account / Note: {shown_text}{cursor}", fill=(34, 31, 28))
-
-        # 滑块验证轨道 [216, cy + 174, w - 216, cy + 224]
-        track_x0, track_y0, track_x1, track_y1 = 216, cy + 174, w - 216, cy + 224
-        knob_w = 64
-        max_travel = (track_x1 - track_x0) - knob_w
-        knob_x = int(track_x0 + browser_sim["slider_x"] * max_travel)
-        fill_color = (220, 252, 231) if browser_sim["verified"] else (243, 236, 228)
-        border_color = (22, 163, 74) if browser_sim["verified"] else (204, 196, 186)
-        draw.rounded_rectangle([track_x0, track_y0, track_x1, track_y1], radius=10, fill=fill_color, outline=border_color, width=2)
-        if knob_x > track_x0:
-            prog_color = (134, 239, 172) if browser_sim["verified"] else (238, 206, 184)
-            draw.rounded_rectangle([track_x0 + 2, track_y0 + 2, knob_x + knob_w // 2, track_y1 - 2], radius=8, fill=prog_color)
-
-        label = "VERIFIED OK - Human drag completed" if browser_sim["verified"] else "Drag slider -> to complete check"
-        draw.text((track_x0 + 130, track_y0 + 19), label, fill=(21, 128, 61) if browser_sim["verified"] else (110, 102, 94))
-
-        knob_color = (22, 163, 74) if browser_sim["verified"] else (201, 122, 74)
-        draw.rounded_rectangle([knob_x, track_y0 + 3, knob_x + knob_w, track_y1 - 3], radius=8, fill=knob_color)
-        draw.text((knob_x + 22, track_y0 + 19), "OK" if browser_sim["verified"] else ">>", fill=(255, 255, 255))
-
-        # 重置按钮 [216, cy + 256, 360, cy + 296]
-        draw.rounded_rectangle([216, cy + 256, 360, cy + 296], radius=8, fill=(44, 40, 36))
-        draw.text((252, cy + 270), "Reset Check", fill=(255, 255, 255))
-
-        # 最近一次点击指示圈
-        if browser_sim["last_click"] is not None:
-            lx, ly = browser_sim["last_click"]
-            draw.ellipse([lx - 10, ly - 10, lx + 10, ly + 10], outline=(201, 122, 74), width=2)
-
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=78)
-        browser_sim["seq"] += 1
-        return {
-            "data": base64.b64encode(buf.getvalue()).decode("ascii"),
-            "seq": browser_sim["seq"],
-            "metadata": {
-                "deviceWidth": w,
-                "deviceHeight": h,
-                "pageScaleFactor": 1,
-                "timestamp": int(time.time() * 1000),
-            },
-        }
-
-    def _browser_sim_status(*, include_frame: bool = False) -> dict:
-        out = {
-            "connected": browser_sim["connected"],
-            "port": 19223 if browser_sim["connected"] else None,
-            "session": "tentacle-preview",
-            "mode": "local",
-            "headed": False,
-            "max_fps": 10,
-            "url": browser_sim["url"],
-            "title": browser_sim["title"],
-            "tabs": deepcopy(browser_sim["tabs"]),
-            "viewport": {"width": browser_sim["width"], "height": browser_sim["height"]},
-            "has_frame": browser_sim["connected"],
-            "error": None,
-        }
-        if include_frame and browser_sim["connected"]:
-            out["frame"] = _render_browser_sim_frame()
-        return out
-
-    @app.get("/api/plugins/ext/browser/status", dependencies=[Depends(auth)])
-    async def browser_preview_status(include_frame: bool = False):
-        return _browser_sim_status(include_frame=include_frame)
-
-    @app.post("/api/plugins/ext/browser/stream/connect", dependencies=[Depends(auth)])
-    async def browser_preview_connect():
-        browser_sim["connected"] = True
-        frame = _render_browser_sim_frame()
-        await _broadcast_plugin_event("browser", "stream.frame", frame)
-        snap = _browser_sim_status(include_frame=False)
-        snap["frame"] = frame
-        return snap
-
-    @app.post("/api/plugins/ext/browser/stream/disconnect", dependencies=[Depends(auth)])
-    async def browser_preview_disconnect():
-        browser_sim["connected"] = False
-        snap = _browser_sim_status(include_frame=False)
-        await _broadcast_plugin_event("browser", "stream.state", snap)
-        return snap
-
-    @app.post("/api/plugins/ext/browser/stream/heartbeat", dependencies=[Depends(auth)])
-    async def browser_preview_heartbeat():
-        return _browser_sim_status(include_frame=False)
-
-    @app.post("/api/plugins/ext/browser/input", dependencies=[Depends(auth)])
-    async def browser_preview_input(body: dict):
-        if not browser_sim["connected"]:
-            raise HTTPException(409, "实时视口尚未连接")
-        events = body.get("events") if isinstance(body, dict) else []
-        if not isinstance(events, list):
-            events = []
-        cy = 96 - min(60, max(-40, browser_sim["scroll_y"] // 4))
-        track_x0, track_y0, track_x1, track_y1 = 216, cy + 174, browser_sim["width"] - 216, cy + 224
-        max_travel = max(1, (track_x1 - track_x0) - 64)
-
-        for ev in events:
-            if not isinstance(ev, dict):
-                continue
-            ev_type = ev.get("type")
-            if ev_type == "input_mouse":
-                et = ev.get("eventType")
-                x = float(ev.get("x", 0))
-                y = float(ev.get("y", 0))
-                if et == "mousePressed":
-                    browser_sim["last_click"] = (x, y)
-                    browser_sim["clicks"] += 1
-                    browser_sim["input_focused"] = (216 <= x <= browser_sim["width"] - 216 and cy + 92 <= y <= cy + 136)
-                    if track_x0 <= x <= track_x1 and track_y0 <= y <= track_y1:
-                        browser_sim["dragging_slider"] = True
-                        browser_sim["slider_x"] = max(0.0, min(1.0, (x - track_x0 - 32) / max_travel))
-                        if browser_sim["slider_x"] >= 0.92:
-                            browser_sim["slider_x"] = 1.0
-                            browser_sim["verified"] = True
-                    elif 216 <= x <= 360 and cy + 256 <= y <= cy + 296:
-                        browser_sim["slider_x"] = 0.0
-                        browser_sim["verified"] = False
-                elif et == "mouseMoved" and browser_sim["dragging_slider"]:
-                    browser_sim["slider_x"] = max(0.0, min(1.0, (x - track_x0 - 32) / max_travel))
-                    if browser_sim["slider_x"] >= 0.92:
-                        browser_sim["slider_x"] = 1.0
-                        browser_sim["verified"] = True
-                elif et == "mouseReleased":
-                    browser_sim["dragging_slider"] = False
-                elif et == "mouseWheel":
-                    dy = int(float(ev.get("deltaY", 0)))
-                    browser_sim["scroll_y"] = max(0, min(600, browser_sim["scroll_y"] + dy))
-            elif ev_type == "input_keyboard":
-                if ev.get("eventType") == "keyDown":
-                    key = str(ev.get("key") or "")
-                    text = str(ev.get("text") or "")
-                    if key == "Backspace":
-                        browser_sim["input_text"] = browser_sim["input_text"][:-1]
-                    elif text:
-                        browser_sim["input_text"] = (browser_sim["input_text"] + text)[-64:]
-            elif ev_type == "input_text":
-                text = str(ev.get("text") or "")
-                if text:
-                    browser_sim["input_text"] = (browser_sim["input_text"] + text)[-64:]
-
-        frame = _render_browser_sim_frame()
-        await _broadcast_plugin_event("browser", "stream.frame", frame)
-        return {"ok": True, "sent": len(events)}
-
-    @app.post("/api/plugins/ext/browser/action", dependencies=[Depends(auth)])
-    async def browser_preview_action(body: dict):
-        act = str((body or {}).get("action") or "").strip().lower()
-        if act == "open":
-            url = str((body or {}).get("url") or "").strip()
-            if url and not url.startswith(("http://", "https://", "about:")):
-                url = "https://" + url
-            if url:
-                browser_sim["url"] = url
-                browser_sim["tabs"][browser_sim["active_tab"]]["url"] = url
-                browser_sim["tabs"][browser_sim["active_tab"]]["title"] = url.split("://", 1)[-1][:28]
-        elif act == "tab_new":
-            idx = len(browser_sim["tabs"])
-            tab_num = browser_sim["next_tab_num"]
-            browser_sim["next_tab_num"] = tab_num + 1
-            for t in browser_sim["tabs"]:
-                t["active"] = False
-            browser_sim["tabs"].append({
-                "tab_id": f"t{tab_num}",
-                "label": None,
-                "index": idx,
-                "title": f"New Tab {tab_num}",
-                "url": "about:blank",
-                "active": True,
-            })
-            browser_sim["active_tab"] = idx
-            browser_sim["url"] = "about:blank"
-        elif act == "tab_select":
-            tab_id = str((body or {}).get("tab_id") or "").strip()
-            idx = next((i for i, t in enumerate(browser_sim["tabs"]) if tab_id and t.get("tab_id") == tab_id), None)
-            if idx is None:
-                idx = int((body or {}).get("index", 0))
-            if 0 <= idx < len(browser_sim["tabs"]):
-                for i, t in enumerate(browser_sim["tabs"]):
-                    t["active"] = (i == idx)
-                browser_sim["active_tab"] = idx
-                browser_sim["url"] = browser_sim["tabs"][idx]["url"]
-                browser_sim["title"] = browser_sim["tabs"][idx]["title"]
-        elif act == "tab_close" and len(browser_sim["tabs"]) > 1:
-            tab_id = str((body or {}).get("tab_id") or "").strip()
-            idx = next((i for i, t in enumerate(browser_sim["tabs"]) if tab_id and t.get("tab_id") == tab_id), None)
-            if idx is None:
-                idx = int((body or {}).get("index", browser_sim["active_tab"]))
-            if 0 <= idx < len(browser_sim["tabs"]):
-                browser_sim["tabs"].pop(idx)
-                for i, t in enumerate(browser_sim["tabs"]):
-                    t["index"] = i
-                    t["active"] = (i == 0)
-                browser_sim["active_tab"] = 0
-                browser_sim["url"] = browser_sim["tabs"][0]["url"]
-                browser_sim["title"] = browser_sim["tabs"][0]["title"]
-        elif act == "sync_viewport":
-            pass
-        if browser_sim["connected"]:
-            frame = _render_browser_sim_frame()
-            await _broadcast_plugin_event("browser", "stream.frame", frame)
-        return _browser_sim_status(include_frame=False)
 
     @app.get("/api/plugins/ext/{_rest:path}", dependencies=[Depends(auth)])
     async def plugins_ext_preview():

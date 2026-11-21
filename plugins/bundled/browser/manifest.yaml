@@ -8,14 +8,6 @@ permissions:
   - tools:register
   - fs:workspace_write
   - network:outbound
-  - web:ui
-  - web:routes
-ui:
-  dir: ui
-  entry: index.html
-  title: 浏览器视口
-  description: 实时查看并手动交互当前浏览器会话，适用于登录或人工介入验证。
-  placement: sidebar
 config_schema:
   executable:
     type: string
