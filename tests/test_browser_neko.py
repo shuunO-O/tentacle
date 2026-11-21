@@ -305,3 +305,44 @@ async def test_browser_live_view_summary_and_ext_route_behind_auth(tmp_path, mon
             assert "reverse_proxy" in proxy_action.json()["proxy_config"]
     finally:
         await pm.shutdown()
+
+
+async def test_cdp_proxy_script_forwards_half_closed_tcp_stream():
+    import asyncio
+
+    ns: dict = {}
+    exec(compile(browser_neko.render_cdp_proxy_script(), "cdp-proxy.py", "exec"), ns)
+
+    async def echo_upstream(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        data = await reader.read()
+        writer.write(b"HTTP/1.1 200 OK\r\n\r\n" + data)
+        await writer.drain()
+        writer.close()
+
+    upstream = await asyncio.start_server(echo_upstream, "127.0.0.1", 0)
+    up_port = upstream.sockets[0].getsockname()[1]
+
+    orig_open = asyncio.open_connection
+
+    async def redirected_open(host, port, *a, **kw):
+        assert (host, port) == ("127.0.0.1", 9223)
+        return await orig_open("127.0.0.1", up_port, *a, **kw)
+
+    ns["asyncio"].open_connection = redirected_open
+    proxy_srv = await asyncio.start_server(ns["_handle"], "127.0.0.1", 0)
+    proxy_port = proxy_srv.sockets[0].getsockname()[1]
+
+    try:
+        r, w = await orig_open("127.0.0.1", proxy_port)
+        w.write(b"GET /json/version HTTP/1.1\r\n\r\n")
+        await w.drain()
+        w.write_eof()
+        resp = await r.read()
+        w.close()
+        assert resp == b"HTTP/1.1 200 OK\r\n\r\nGET /json/version HTTP/1.1\r\n\r\n"
+    finally:
+        ns["asyncio"].open_connection = orig_open
+        proxy_srv.close()
+        upstream.close()
+        await proxy_srv.wait_closed()
+        await upstream.wait_closed()

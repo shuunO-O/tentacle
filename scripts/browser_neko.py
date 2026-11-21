@@ -244,24 +244,28 @@ async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> N
                 break
             writer.write(chunk)
             await writer.drain()
+        if writer.can_write_eof():
+            writer.write_eof()
     except (ConnectionError, OSError, asyncio.CancelledError):
         pass
-    finally:
-        try:
-            writer.close()
-        except Exception:
-            pass
 
 
 async def _handle(client_r: asyncio.StreamReader, client_w: asyncio.StreamWriter) -> None:
+    upstream_w = None
     try:
         upstream_r, upstream_w = await asyncio.open_connection("127.0.0.1", 9223)
+        t1 = asyncio.create_task(_pipe(client_r, upstream_w))
+        t2 = asyncio.create_task(_pipe(upstream_r, client_w))
+        await asyncio.gather(t1, t2, return_exceptions=True)
     except OSError:
-        client_w.close()
-        return
-    t1 = asyncio.create_task(_pipe(client_r, upstream_w))
-    t2 = asyncio.create_task(_pipe(upstream_r, client_w))
-    await asyncio.gather(t1, t2, return_exceptions=True)
+        pass
+    finally:
+        for w in (upstream_w, client_w):
+            if w is not None:
+                try:
+                    w.close()
+                except Exception:
+                    pass
 
 
 async def main() -> None:
@@ -470,7 +474,18 @@ def ensure_env_passwords(env_path: Path, *, rotate: bool = False) -> tuple[dict[
     return creds, changed
 
 
-def write_install_files(cfg: NekoConfig, *, rotate_passwords: bool = False) -> tuple[dict[str, str], bool]:
+def _write_if_changed(path: Path, text: str, mode: int = 0o644) -> bool:
+    """仅当文件内容有变化时才原子替换，避免无故更换 bind-mount 文件 inode。"""
+    try:
+        if path.is_file() and path.read_text(encoding="utf-8") == text:
+            return False
+    except OSError:
+        pass
+    _atomic_write(path, text, mode=mode)
+    return True
+
+
+def write_install_files(cfg: NekoConfig, *, rotate_passwords: bool = False) -> tuple[dict[str, str], bool, bool]:
     root = Path(cfg.install_dir).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     profile_dir = root / "profile"
@@ -484,13 +499,18 @@ def write_install_files(cfg: NekoConfig, *, rotate_passwords: bool = False) -> t
             pass
 
     creds, rotated = ensure_env_passwords(root / ".env", rotate=rotate_passwords)
-    _atomic_write(root / "policies.json", render_chromium_policies(), mode=0o644)
-    _atomic_write(root / "cdp-proxy.py", render_cdp_proxy_script(), mode=0o644)
-    _atomic_write(root / "chromium.conf", render_chromium_supervisord_conf(), mode=0o644)
-    _atomic_write(root / "docker-compose.yaml", render_docker_compose(cfg), mode=0o644)
-    _atomic_write(root / "reverse-proxy.example.conf", render_reverse_proxy_examples(cfg), mode=0o644)
-    _atomic_write(root / STATE_FILENAME, json.dumps(asdict(cfg), ensure_ascii=False, indent=2) + "\n", mode=0o644)
-    return creds, rotated
+    changed = rotated
+    for filename, content in (
+        ("policies.json", render_chromium_policies()),
+        ("cdp-proxy.py", render_cdp_proxy_script()),
+        ("chromium.conf", render_chromium_supervisord_conf()),
+        ("docker-compose.yaml", render_docker_compose(cfg)),
+        ("reverse-proxy.example.conf", render_reverse_proxy_examples(cfg)),
+        (STATE_FILENAME, json.dumps(asdict(cfg), ensure_ascii=False, indent=2) + "\n"),
+    ):
+        if _write_if_changed(root / filename, content, mode=0o644):
+            changed = True
+    return creds, rotated, changed
 
 
 def load_saved_config(install_dir: Path) -> NekoConfig | None:
@@ -894,8 +914,8 @@ def execute_local_control(
         raise RuntimeError("当前环境未检测到可用 Docker 引擎，请先运行 `sudo tentacle browser install --install-docker`。")
 
     if act in {"start", "restart"}:
-        write_install_files(cfg, rotate_passwords=False)
-        args = ["up", "-d", "--force-recreate"] if act == "restart" else ["up", "-d"]
+        _creds, _rotated, files_changed = write_install_files(cfg, rotate_passwords=False)
+        args = ["up", "-d", "--force-recreate"] if (act == "restart" or files_changed) else ["up", "-d"]
         proc = _run_compose(compose_cmd, root, args, check=False, capture=True)
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or "").strip()[:400]
@@ -1107,7 +1127,7 @@ def cmd_install(args: argparse.Namespace) -> int:
             "建议配置至少 2G Swap 避免重型网页触发 OOM（已自动将 shm_size 调整为 512m）。"
         )
 
-    creds, rotated = write_install_files(cfg, rotate_passwords=args.rotate_passwords)
+    creds, rotated, files_changed = write_install_files(cfg, rotate_passwords=args.rotate_passwords)
     print(f"[neko] 已写入运行配置到: {install_dir}")
     print(f"[neko] 反代参考配置已生成: {install_dir / 'reverse-proxy.example.conf'}")
 
@@ -1144,7 +1164,8 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     print(f"[neko] 正在拉取并启动 {cfg.image} ...")
     _run_compose(compose_cmd, install_dir, ["pull"])
-    _run_compose(compose_cmd, install_dir, ["up", "-d"])
+    up_args = ["up", "-d", "--force-recreate"] if files_changed else ["up", "-d"]
+    _run_compose(compose_cmd, install_dir, up_args)
 
     print(f"[neko] 等待本机 CDP 端点 127.0.0.1:{cfg.cdp_port} 就绪...")
     cdp_info = wait_for_cdp(cfg.cdp_port)
