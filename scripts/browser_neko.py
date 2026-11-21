@@ -733,7 +733,12 @@ def install_control_socket(*, allowed_user: str | None = None, helper_path: Path
         return False
 
     user = (allowed_user or detect_tentacle_app_user()).strip() or "root"
-    script_path = (helper_path or Path(__file__).resolve()).resolve()
+    if helper_path is not None:
+        script_path = helper_path
+    else:
+        stable = Path("/opt/tentacle/current/scripts/browser_neko.py")
+        resolved = Path(__file__).resolve()
+        script_path = stable if (stable.is_file() and stable.resolve() == resolved) else resolved
     _atomic_write(Path("/etc/systemd/system") / CONTROL_SOCKET_UNIT, render_control_socket_unit(user), mode=0o644)
     _atomic_write(Path("/etc/systemd/system") / CONTROL_SERVICE_UNIT, render_control_service_unit(script_path, user), mode=0o644)
     subprocess.run([systemctl, "daemon-reload"], check=False)

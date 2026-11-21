@@ -15,7 +15,7 @@ from plugins.hooks import HookBus
 from plugins.manager import PluginManager
 from plugins.manifest import bundled_plugins_dir
 from runtime.tool_registry import ToolRegistry
-from scripts import browser_neko
+from scripts import browser_neko, release_package
 from scripts.deploy import managed as deploy_managed
 from web.adapter import ConnectionManager
 from web.server import create_app
@@ -23,10 +23,15 @@ from web.settings import DEVICE_COOKIE, WebSettings
 
 
 def test_browser_neko_files_are_in_deploy_whitelist():
-    assert deploy_managed("scripts/browser_neko.py")
-    assert deploy_managed("scripts/tentacle.sh")
-    assert deploy_managed("plugins/bundled/browser/manifest.yaml")
-    assert deploy_managed("plugins/bundled/browser/plugin.py")
+    for rel in (
+        "scripts/browser_neko.py",
+        "scripts/tentacle.sh",
+        "plugins/bundled/browser/manifest.yaml",
+        "plugins/bundled/browser/plugin.py",
+    ):
+        assert deploy_managed(rel), f"not deploy.managed: {rel}"
+        assert release_package.runtime_name(rel), f"not release_package.runtime_name: {rel}"
+        assert release_package.package_name(rel), f"not release_package.package_name: {rel}"
 
 
 def test_browser_neko_validators_and_renderers():

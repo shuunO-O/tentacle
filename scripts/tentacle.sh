@@ -95,13 +95,18 @@ case "$action" in
             printf '未找到 browser_neko.py，请升级 Tentacle 或直接执行 python3 scripts/browser_neko.py。\n' >&2
             exit 1
         fi
+        helper_dir=$(CDPATH='' cd -- "$(dirname -- "$helper")" && pwd)
+        py_bin=/usr/bin/python3
+        if [ -x "$helper_dir/../.venv/bin/python" ]; then
+            py_bin="$helper_dir/../.venv/bin/python"
+        fi
         if [ "$#" -eq 0 ] || [ "${1:-}" = '--help' ] || [ "${1:-}" = '-h' ]; then
-            exec /usr/bin/python3 "$helper" --help
+            exec "$py_bin" "$helper" --help
         fi
         if [ "$(id -u)" -eq 0 ]; then
-            exec /usr/bin/python3 "$helper" "$@"
+            exec "$py_bin" "$helper" "$@"
         else
-            exec sudo /usr/bin/python3 "$helper" "$@"
+            exec sudo "$py_bin" "$helper" "$@"
         fi
         ;;
     help|-h|--help)

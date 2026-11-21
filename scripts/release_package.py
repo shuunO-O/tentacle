@@ -28,6 +28,7 @@ HOST_SCRIPTS = {
     'scripts/configure.py',
     'scripts/memory_sources.py',
     'scripts/backup_home.py',
+    'scripts/browser_neko.py',
     'scripts/tentacle.sh',
     *('scripts/' + name for name in deploy.UPDATER_FILES),
 }
