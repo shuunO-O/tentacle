@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_TAB_LABEL_OR_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
+_TAB_TARGET_HEX_RE = re.compile(r"^[0-9A-Fa-f]{16,64}$")
 _ALLOWED_MOUSE_EVENTS = frozenset({"mousePressed", "mouseReleased", "mouseMoved", "mouseWheel"})
 _ALLOWED_MOUSE_BUTTONS = frozenset({"left", "right", "middle", "none"})
 _ALLOWED_KEY_EVENTS = frozenset({"keyDown", "keyUp", "rawKeyDown", "char"})
@@ -83,6 +85,18 @@ def _extract_stream_port(payload: Any) -> tuple[bool, int | None]:
     return enabled or port is not None, port
 
 
+def normalize_tab_ref(raw_ref: Any) -> str:
+    """校验并规范化 agent-browser 标签页引用（仅允许 t<N>、label 或目标 ID，禁止纯数字）。"""
+    candidate = str(raw_ref or "").strip()
+    if not candidate:
+        raise ValueError("标签页标识不能为空")
+    if candidate.isdigit():
+        raise ValueError("标签页标识不能使用纯数字索引，请使用稳定 tabId（如 t1）")
+    if _TAB_LABEL_OR_ID_RE.fullmatch(candidate) or _TAB_TARGET_HEX_RE.fullmatch(candidate):
+        return candidate
+    raise ValueError(f"标签页标识无效: {candidate}")
+
+
 def _extract_tabs(payload: Any) -> list[dict[str, Any]]:
     raw_tabs: list[Any] = []
     if isinstance(payload, list):
@@ -102,7 +116,13 @@ def _extract_tabs(payload: Any) -> list[dict[str, Any]]:
             tab_index = int(tab_index)
         except (TypeError, ValueError):
             tab_index = idx
+        raw_tab_id = item.get("tabId") or item.get("tab_id") or item.get("id")
+        tab_id = str(raw_tab_id).strip() if isinstance(raw_tab_id, str) and raw_tab_id.strip() else ""
+        raw_label = item.get("label")
+        label = str(raw_label).strip() if isinstance(raw_label, str) and raw_label.strip() else None
         tabs.append({
+            "tab_id": tab_id,
+            "label": label,
             "index": tab_index,
             "title": str(item.get("title") or "").strip(),
             "url": str(item.get("url") or "").strip(),
@@ -228,6 +248,7 @@ class InputBatchBody(BaseModel):
 class BrowserActionBody(BaseModel):
     action: str
     url: str | None = None
+    tab_id: str | None = None
     index: int | None = None
 
 
@@ -385,6 +406,7 @@ class BrowserStreamBridge:
             self._watchdog_task = asyncio.create_task(self._watchdog_loop(), name="browser-stream-watchdog")
 
         await self.refresh_metadata()
+        await self._sync_active_tab_viewport()
         snap = self.snapshot(include_frame=True)
         await self._safe_emit("stream.state", self.snapshot(include_frame=False))
         return snap
@@ -497,6 +519,7 @@ class BrowserStreamBridge:
                             "deviceWidth": dw,
                             "deviceHeight": dh,
                             "pageScaleFactor": meta.get("pageScaleFactor", 1),
+                            "offsetTop": _clamp_finite(meta.get("offsetTop", 0), 0.0, 2000.0, 0.0),
                             "timestamp": meta.get("timestamp"),
                         },
                     }
@@ -529,6 +552,12 @@ class BrowserStreamBridge:
                         self._url = msg["url"]
                     if isinstance(msg.get("title"), str):
                         self._title = msg["title"]
+                    raw_vw = msg.get("viewportWidth")
+                    raw_vh = msg.get("viewportHeight")
+                    if isinstance(raw_vw, (int, float)) and raw_vw > 0:
+                        self._viewport_width = _clamp_int(raw_vw, 1, 8192, self._viewport_width)
+                    if isinstance(raw_vh, (int, float)) and raw_vh > 0:
+                        self._viewport_height = _clamp_int(raw_vh, 1, 8192, self._viewport_height)
                     await self._safe_emit("stream.meta", self._meta_snapshot())
         except asyncio.CancelledError:
             raise
@@ -621,9 +650,44 @@ class BrowserStreamBridge:
             pass
         return self._meta_snapshot()
 
+    def _resolve_tab_ref(self, body: BrowserActionBody) -> str:
+        if body.tab_id is not None and str(body.tab_id).strip():
+            return normalize_tab_ref(body.tab_id)
+        if body.index is not None:
+            for tab in self._tabs:
+                if tab.get("index") == body.index:
+                    candidate = tab.get("tab_id") or tab.get("label")
+                    if candidate:
+                        return normalize_tab_ref(candidate)
+                    break
+            raise ValueError("未找到该标签页对应的稳定 tabId，请刷新标签页列表后重试")
+        raise ValueError("缺少有效的标签页标识（tab_id）")
+
+    async def _sync_active_tab_viewport(self, *, fallback_first: bool = False) -> bool:
+        """触发 agent-browser tab 切换以将 StreamServer 视口同步为 Chrome 当前真实内容区尺寸。"""
+        if not self._tabs:
+            await self.refresh_metadata()
+        target = next((t for t in self._tabs if t.get("active") and (t.get("tab_id") or t.get("label"))), None)
+        if target is None and fallback_first:
+            target = next((t for t in self._tabs if t.get("tab_id") or t.get("label")), None)
+        if target is None:
+            return False
+        raw_ref = target.get("tab_id") or target.get("label")
+        try:
+            ref = normalize_tab_ref(raw_ref)
+            out = await self._run_browser(f"tab {shlex.quote(ref)}")
+        except Exception as exc:
+            logger.debug(f"[browser-stream] 同步活动标签视口失败: {exc}")
+            return False
+        if out.startswith(("错误：", "[退出码:", "[安全审查]", "[状态: 超时]")):
+            logger.debug(f"[browser-stream] 同步活动标签视口返回失败: {out[:200]}")
+            return False
+        return True
+
     async def perform_action(self, body: BrowserActionBody) -> dict[str, Any]:
         self._last_heartbeat = time.monotonic()
         act = str(body.action or "").strip().lower()
+        should_sync_viewport = False
         if act == "open":
             url = normalize_navigation_url(body.url or "")
             output = await self._run_browser(f"open {shlex.quote(url)}")
@@ -639,17 +703,22 @@ class BrowserStreamBridge:
                 output = await self._run_browser(f"tab new {shlex.quote(url)}")
             else:
                 output = await self._run_browser("tab new")
+            should_sync_viewport = self._connected
         elif act == "tab_select":
-            if body.index is None or body.index < 0 or body.index > 200:
-                raise ValueError("标签页索引无效")
-            output = await self._run_browser(f"tab {int(body.index)}")
+            ref = self._resolve_tab_ref(body)
+            output = await self._run_browser(f"tab {shlex.quote(ref)}")
         elif act == "tab_close":
-            if body.index is None:
+            if body.tab_id is None and body.index is None:
                 output = await self._run_browser("tab close")
             else:
-                if body.index < 0 or body.index > 200:
-                    raise ValueError("标签页索引无效")
-                output = await self._run_browser(f"tab close {int(body.index)}")
+                ref = self._resolve_tab_ref(body)
+                output = await self._run_browser(f"tab close {shlex.quote(ref)}")
+        elif act == "sync_viewport":
+            await self.refresh_metadata()
+            ok = await self._sync_active_tab_viewport(fallback_first=True)
+            if not ok:
+                raise RuntimeError("未能同步当前标签页视口尺寸（请确认已有活动页面）")
+            output = "ok"
         elif act == "refresh_tabs":
             output = "ok"
         else:
@@ -659,6 +728,8 @@ class BrowserStreamBridge:
             raise RuntimeError(output)
 
         await self.refresh_metadata()
+        if should_sync_viewport:
+            await self._sync_active_tab_viewport()
         snap = self.snapshot(include_frame=False)
         await self._safe_emit("stream.meta", self._meta_snapshot())
         return snap

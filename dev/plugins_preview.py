@@ -713,9 +713,10 @@ def attach_plugins(app, authenticated):
         "url": "https://portal.example.test/verify",
         "title": "Demo Verification Portal",
         "tabs": [
-            {"index": 0, "title": "Demo Verification Portal", "url": "https://portal.example.test/verify", "active": True},
-            {"index": 1, "title": "Example Docs", "url": "https://docs.example.test/guide", "active": False},
+            {"tab_id": "t1", "label": None, "index": 0, "title": "Demo Verification Portal", "url": "https://portal.example.test/verify", "active": True},
+            {"tab_id": "t2", "label": None, "index": 1, "title": "Example Docs", "url": "https://docs.example.test/guide", "active": False},
         ],
+        "next_tab_num": 3,
         "active_tab": 0,
         "input_focused": False,
         "input_text": "tentacle-user",
@@ -925,18 +926,25 @@ def attach_plugins(app, authenticated):
                 browser_sim["tabs"][browser_sim["active_tab"]]["title"] = url.split("://", 1)[-1][:28]
         elif act == "tab_new":
             idx = len(browser_sim["tabs"])
+            tab_num = browser_sim["next_tab_num"]
+            browser_sim["next_tab_num"] = tab_num + 1
             for t in browser_sim["tabs"]:
                 t["active"] = False
             browser_sim["tabs"].append({
+                "tab_id": f"t{tab_num}",
+                "label": None,
                 "index": idx,
-                "title": f"New Tab {idx + 1}",
+                "title": f"New Tab {tab_num}",
                 "url": "about:blank",
                 "active": True,
             })
             browser_sim["active_tab"] = idx
             browser_sim["url"] = "about:blank"
         elif act == "tab_select":
-            idx = int((body or {}).get("index", 0))
+            tab_id = str((body or {}).get("tab_id") or "").strip()
+            idx = next((i for i, t in enumerate(browser_sim["tabs"]) if tab_id and t.get("tab_id") == tab_id), None)
+            if idx is None:
+                idx = int((body or {}).get("index", 0))
             if 0 <= idx < len(browser_sim["tabs"]):
                 for i, t in enumerate(browser_sim["tabs"]):
                     t["active"] = (i == idx)
@@ -944,7 +952,10 @@ def attach_plugins(app, authenticated):
                 browser_sim["url"] = browser_sim["tabs"][idx]["url"]
                 browser_sim["title"] = browser_sim["tabs"][idx]["title"]
         elif act == "tab_close" and len(browser_sim["tabs"]) > 1:
-            idx = int((body or {}).get("index", browser_sim["active_tab"]))
+            tab_id = str((body or {}).get("tab_id") or "").strip()
+            idx = next((i for i, t in enumerate(browser_sim["tabs"]) if tab_id and t.get("tab_id") == tab_id), None)
+            if idx is None:
+                idx = int((body or {}).get("index", browser_sim["active_tab"]))
             if 0 <= idx < len(browser_sim["tabs"]):
                 browser_sim["tabs"].pop(idx)
                 for i, t in enumerate(browser_sim["tabs"]):
@@ -953,6 +964,8 @@ def attach_plugins(app, authenticated):
                 browser_sim["active_tab"] = 0
                 browser_sim["url"] = browser_sim["tabs"][0]["url"]
                 browser_sim["title"] = browser_sim["tabs"][0]["title"]
+        elif act == "sync_viewport":
+            pass
         if browser_sim["connected"]:
             frame = _render_browser_sim_frame()
             await _broadcast_plugin_event("browser", "stream.frame", frame)

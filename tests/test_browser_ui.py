@@ -108,6 +108,13 @@ def test_normalize_navigation_url_and_sanitize_inputs():
     with pytest.raises(ValueError):
         stream_mod.sanitize_input_event({"type": "eval", "code": "alert(1)"})
 
+    assert stream_mod.normalize_tab_ref("t1") == "t1"
+    assert stream_mod.normalize_tab_ref("docs-tab_2") == "docs-tab_2"
+    assert stream_mod.normalize_tab_ref("0123456789ABCDEF") == "0123456789ABCDEF"
+    for bad_ref in ("", "0", "1", "12", "t1; rm -rf", "-bad"):
+        with pytest.raises(ValueError):
+            stream_mod.normalize_tab_ref(bad_ref)
+
 
 async def test_stream_bridge_connect_frame_ack_input_and_disconnect():
     cli_calls: list[str] = []
@@ -125,7 +132,12 @@ async def test_stream_bridge_connect_frame_ack_input_and_disconnect():
         if cmd == "tab --json":
             return json.dumps({
                 "success": True,
-                "data": {"tabs": [{"index": 0, "title": "Login", "url": "https://example.com", "active": True}]},
+                "data": {
+                    "tabs": [
+                        {"tabId": "t1", "label": None, "title": "Login", "url": "https://example.com", "active": True},
+                        {"tabId": "t2", "label": "docs", "title": "Docs", "url": "https://docs.example.com", "active": False},
+                    ]
+                },
             })
         if cmd == "stream disable":
             return "disabled"
@@ -154,13 +166,28 @@ async def test_stream_bridge_connect_frame_ack_input_and_disconnect():
         assert snap["mode"] == "local"
         assert snap["headed"] is False
         assert snap["url"] == "https://example.com"
+        assert snap["tabs"][0]["tab_id"] == "t1"
+        assert snap["tabs"][1]["tab_id"] == "t2"
+        assert snap["tabs"][1]["label"] == "docs"
         assert connected_urls == ["ws://127.0.0.1:19333/?pacing=ack&maxFps=8"]
+        # 连接后自动对活动标签执行一次 tab t1 以同步真实视口
+        assert "tab t1" in cli_calls
+
+        fake_ws.push({
+            "type": "status",
+            "connected": True,
+            "screencasting": True,
+            "viewportWidth": 1536,
+            "viewportHeight": 824,
+        })
+        await asyncio.sleep(0.05)
+        assert bridge.snapshot()["viewport"] == {"width": 1536, "height": 824}
 
         fake_ws.push({
             "type": "frame",
             "seq": 7,
             "data": "ZmFrZS1qcGVn",
-            "metadata": {"deviceWidth": 1024, "deviceHeight": 640, "timestamp": 123456},
+            "metadata": {"deviceWidth": 1536, "deviceHeight": 824, "offsetTop": 0, "timestamp": 123456},
         })
         await asyncio.sleep(0.05)
 
@@ -168,7 +195,7 @@ async def test_stream_bridge_connect_frame_ack_input_and_disconnect():
         assert {"type": "ack", "seq": 7} in fake_ws.sent
         snap_with_frame = bridge.snapshot(include_frame=True)
         assert snap_with_frame["frame"]["data"] == "ZmFrZS1qcGVn"
-        assert snap_with_frame["viewport"] == {"width": 1024, "height": 640}
+        assert snap_with_frame["viewport"] == {"width": 1536, "height": 824}
 
         sent = await bridge.send_inputs([
             {"type": "input_mouse", "eventType": "mousePressed", "x": 100, "y": 200, "button": "left", "clickCount": 1},
@@ -180,6 +207,22 @@ async def test_stream_bridge_connect_frame_ack_input_and_disconnect():
 
         await bridge.perform_action(stream_mod.BrowserActionBody(action="open", url="example.org/a b"))
         assert any(c.startswith("open ") and "https://example.org/a b" in c for c in cli_calls)
+
+        await bridge.perform_action(stream_mod.BrowserActionBody(action="tab_select", tab_id="t2"))
+        assert "tab t2" in cli_calls
+
+        await bridge.perform_action(stream_mod.BrowserActionBody(action="tab_close", tab_id="t2"))
+        assert "tab close t2" in cli_calls
+
+        # 兼容只传 index 时从当前 tabs 反查稳定 tabId，绝不传递纯数字给 agent-browser
+        await bridge.perform_action(stream_mod.BrowserActionBody(action="tab_select", index=1))
+        assert cli_calls[-2] == "tab t2"
+
+        await bridge.perform_action(stream_mod.BrowserActionBody(action="sync_viewport"))
+        assert cli_calls[-2] == "tab t1"
+
+        with pytest.raises(ValueError):
+            await bridge.perform_action(stream_mod.BrowserActionBody(action="tab_select", tab_id="1"))
     finally:
         await bridge.disconnect()
 
@@ -317,6 +360,17 @@ def test_preview_browser_ui_document_and_synthetic_stream():
         )
         assert inp.status_code == 200
         assert inp.json()["ok"] is True
+
+        sel = client.post("/api/plugins/ext/browser/action", json={"action": "tab_select", "tab_id": "t2"})
+        assert sel.status_code == 200
+        assert any(t["tab_id"] == "t2" and t["active"] for t in sel.json()["tabs"])
+
+        sync = client.post("/api/plugins/ext/browser/action", json={"action": "sync_viewport"})
+        assert sync.status_code == 200
+
+        close = client.post("/api/plugins/ext/browser/action", json={"action": "tab_close", "tab_id": "t2"})
+        assert close.status_code == 200
+        assert len(close.json()["tabs"]) == 1
 
         disc = client.post("/api/plugins/ext/browser/stream/disconnect", json={})
         assert disc.status_code == 200

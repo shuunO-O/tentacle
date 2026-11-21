@@ -241,6 +241,12 @@
       user-select: none;
     }
 
+    .stage.scroll-mode {
+      overflow: auto;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
     .viewport-shell {
       position: relative;
       display: none;
@@ -255,6 +261,13 @@
       box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
     }
 
+    .stage.scroll-mode .viewport-shell {
+      max-width: none;
+      max-height: none;
+      margin: auto;
+      flex-shrink: 0;
+    }
+
     .viewport-shell.visible {
       display: flex;
     }
@@ -266,15 +279,12 @@
 
     #viewport-canvas {
       display: block;
-      max-width: 100%;
-      max-height: calc(100vh - 122px);
-      width: auto;
-      height: auto;
-      touch-action: none;
+      touch-action: auto;
       cursor: default;
     }
 
     #viewport-canvas.interactive {
+      touch-action: none;
       cursor: crosshair;
     }
 
@@ -424,6 +434,30 @@
       font-family: var(--t-font-mono, ui-monospace, monospace);
     }
 
+    .status-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--t-fg-dim, #a8a096);
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+
+    .status-btn:hover:not(:disabled) {
+      color: var(--t-fg, #ede8e0);
+      background: var(--t-bg-hover, rgba(255, 255, 255, 0.08));
+      border-color: var(--t-border-soft, rgba(255, 255, 255, 0.1));
+    }
+
+    .status-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
     .waiting-overlay {
       position: absolute;
       inset: 0;
@@ -472,7 +506,7 @@
 
     <div id="tabs-bar" class="tabs-bar"></div>
 
-    <main class="stage">
+    <main id="stage" class="stage">
       <div id="empty-card" class="empty-card">
         <h2 class="empty-title">浏览器实时视口</h2>
         <p class="empty-desc">
@@ -521,7 +555,18 @@
         <span id="status-hint">点击画面后可直接鼠标交互并输入键盘/中文</span>
       </div>
       <div class="status-right mono">
-        <span id="status-size">1280 × 720</span>
+        <button
+          id="btn-view-mode"
+          class="status-btn"
+          type="button"
+          title="在适应窗口与 100% 原始尺寸（可滚动）之间切换"
+        >适应窗口</button>
+        <button
+          id="status-size"
+          class="status-btn mono"
+          type="button"
+          title="若远程浏览器窗口大小发生变化，点击重新同步视口分辨率"
+        >1280 × 720 ↻</button>
         <span id="status-fps">0 fps</span>
       </div>
     </footer>
@@ -530,6 +575,7 @@
   <script>
     (function () {
       var api = window.tentacle;
+      var stageEl = document.getElementById("stage");
       var canvas = document.getElementById("viewport-canvas");
       var ctx2d = canvas.getContext("2d");
       var viewportShell = document.getElementById("viewport-shell");
@@ -541,6 +587,7 @@
       var statusDot = document.getElementById("status-dot");
       var statusText = document.getElementById("status-text");
       var statusHint = document.getElementById("status-hint");
+      var btnViewMode = document.getElementById("btn-view-mode");
       var statusSize = document.getElementById("status-size");
       var statusFps = document.getElementById("status-fps");
       var urlForm = document.getElementById("url-form");
@@ -568,6 +615,8 @@
         hasFrame: false,
         viewportWidth: 1280,
         viewportHeight: 720,
+        offsetTop: 0,
+        viewMode: "fit",
         url: "",
         title: "",
         tabs: [],
@@ -597,6 +646,29 @@
       function formatModeLabel(mode, headed) {
         if (mode === "remote") return "远程 CDP";
         return headed ? "本地有头" : "本地无头";
+      }
+
+      function fitCanvasToStage() {
+        if (!stageEl || !state.connected) return;
+        var isActual = state.viewMode === "actual";
+        stageEl.classList.toggle("scroll-mode", isActual);
+        var frameW = canvas.width || state.viewportWidth || 1280;
+        var frameH = canvas.height || state.viewportHeight || 720;
+        if (frameW <= 0 || frameH <= 0) return;
+        if (isActual) {
+          var targetW = state.viewportWidth || frameW;
+          var targetH = state.viewportHeight || frameH;
+          canvas.style.width = Math.max(1, Math.round(targetW)) + "px";
+          canvas.style.height = Math.max(1, Math.round(targetH)) + "px";
+          return;
+        }
+        var availW = Math.max(1, stageEl.clientWidth - 26);
+        var availH = Math.max(1, stageEl.clientHeight - 26);
+        var scale = Math.min(availW / frameW, availH / frameH);
+        var displayW = Math.max(1, Math.floor(frameW * scale));
+        var displayH = Math.max(1, Math.floor(frameH * scale));
+        canvas.style.width = displayW + "px";
+        canvas.style.height = displayH + "px";
       }
 
       function renderUiState() {
@@ -642,6 +714,7 @@
             ? (state.keyboardFocused ? "键盘焦点已激活（支持直接打字与中文输入）" : "点击画面即可鼠标操作与键盘输入")
             : "当前为仅观看模式，不会转发点击或按键";
         } else {
+          stageEl.classList.remove("scroll-mode");
           viewportShell.classList.remove("visible");
           emptyCard.classList.remove("hidden");
           statusText.textContent = state.connecting ? "正在连接实时流…" : "未连接";
@@ -650,7 +723,10 @@
         }
 
         viewportShell.classList.toggle("focused", state.connected && state.interactive && state.keyboardFocused);
-        statusSize.textContent = state.viewportWidth + " × " + state.viewportHeight;
+        btnViewMode.textContent = state.viewMode === "actual" ? "100% 原尺寸" : "适应窗口";
+        btnViewMode.disabled = !state.connected;
+        statusSize.textContent = state.viewportWidth + " × " + state.viewportHeight + " ↻";
+        statusSize.disabled = !state.connected;
 
         if (state.error && !state.connected) {
           emptyError.textContent = state.error;
@@ -665,6 +741,9 @@
         }
 
         renderTabs();
+        if (state.connected) {
+          requestAnimationFrame(fitCanvasToStage);
+        }
       }
 
       function renderTabs() {
@@ -676,14 +755,19 @@
         }
         tabsBar.classList.add("visible");
         for (var i = 0; i < tabs.length; i++) {
-          (function (tab) {
+          (function (tab, pos) {
+            var ref = tab.tab_id || tab.label || "";
+            var tabPayload = ref ? { tab_id: ref } : { index: tab.index };
+
             var item = document.createElement("div");
             item.className = "tab-item" + (tab.active ? " active" : "");
-            item.title = (tab.title || "未命名标签页") + (tab.url ? "\n" + tab.url : "");
+            item.title = (tab.title || "未命名标签页")
+              + (ref ? " (" + ref + ")" : "")
+              + (tab.url ? "\n" + tab.url : "");
 
             var titleSpan = document.createElement("span");
             titleSpan.className = "tab-title";
-            titleSpan.textContent = tab.title || tab.url || ("标签页 " + (tab.index + 1));
+            titleSpan.textContent = tab.title || tab.url || (ref ? "标签页 " + ref : "标签页 " + (pos + 1));
             item.appendChild(titleSpan);
 
             if (tabs.length > 1) {
@@ -694,18 +778,18 @@
               closeBtn.title = "关闭标签页";
               closeBtn.addEventListener("click", function (ev) {
                 ev.stopPropagation();
-                runAction("tab_close", { index: tab.index });
+                runAction("tab_close", tabPayload);
               });
               item.appendChild(closeBtn);
             }
 
             item.addEventListener("click", function () {
               if (!tab.active) {
-                runAction("tab_select", { index: tab.index });
+                runAction("tab_select", tabPayload);
               }
             });
             tabsBar.appendChild(item);
-          })(tabs[i]);
+          })(tabs[i], i);
         }
 
         var newBtn = document.createElement("button");
@@ -749,7 +833,10 @@
         if (meta.deviceWidth && meta.deviceHeight) {
           state.viewportWidth = Number(meta.deviceWidth) || state.viewportWidth;
           state.viewportHeight = Number(meta.deviceHeight) || state.viewportHeight;
-          statusSize.textContent = state.viewportWidth + " × " + state.viewportHeight;
+          statusSize.textContent = state.viewportWidth + " × " + state.viewportHeight + " ↻";
+        }
+        if (typeof meta.offsetTop === "number" && isFinite(meta.offsetTop)) {
+          state.offsetTop = Math.max(0, meta.offsetTop);
         }
         queuedFrameData = frame.data;
         if (!renderingFrame) {
@@ -769,7 +856,8 @@
         frameImage.onload = function () {
           var w = frameImage.naturalWidth || state.viewportWidth;
           var h = frameImage.naturalHeight || state.viewportHeight;
-          if (canvas.width !== w || canvas.height !== h) {
+          var resized = (canvas.width !== w || canvas.height !== h);
+          if (resized) {
             canvas.width = w;
             canvas.height = h;
           }
@@ -777,6 +865,9 @@
           if (!state.hasFrame) {
             state.hasFrame = true;
             waitingOverlay.classList.remove("visible");
+            fitCanvasToStage();
+          } else if (resized) {
+            fitCanvasToStage();
           }
           var now = performance.now();
           fpsTimestamps.push(now);
@@ -895,7 +986,7 @@
         ny = Math.max(0, Math.min(1, ny));
         return {
           x: Math.round(nx * state.viewportWidth * 100) / 100,
-          y: Math.round(ny * state.viewportHeight * 100) / 100
+          y: Math.round((ny * state.viewportHeight + (state.offsetTop || 0)) * 100) / 100
         };
       }
 
@@ -1175,6 +1266,30 @@
 
       btnBackChat.addEventListener("click", goBackToChat);
       btnEmptyChat.addEventListener("click", goBackToChat);
+
+      btnViewMode.addEventListener("click", function () {
+        if (!state.connected) return;
+        state.viewMode = state.viewMode === "actual" ? "fit" : "actual";
+        renderUiState();
+      });
+
+      statusSize.addEventListener("click", function () {
+        if (!state.connected) return;
+        runAction("sync_viewport", {}).then(function (ok) {
+          if (ok) {
+            api.toast("已重新同步远程视口分辨率", "ok");
+          }
+        });
+      });
+
+      if (typeof ResizeObserver === "function" && stageEl) {
+        var stageResizeObserver = new ResizeObserver(function () {
+          fitCanvasToStage();
+        });
+        stageResizeObserver.observe(stageEl);
+      } else {
+        window.addEventListener("resize", fitCanvasToStage);
+      }
 
       // 订阅宿主转发的实时流事件
       api.onEvent(function (eventName, payload) {
