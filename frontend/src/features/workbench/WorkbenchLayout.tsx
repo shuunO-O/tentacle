@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
   Code2,
@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { TentacleMascot } from "../../components/brand/TentacleMascot";
 import { Badge } from "../../components/ui/Badge";
 import { Button, cn } from "../../components/ui/Button";
 import { Tooltip, TooltipProvider } from "../../components/ui/Tooltip";
@@ -35,22 +36,34 @@ const LazyTerminalPanel = lazy(() =>
   import("../terminal/TerminalPanel").then((m) => ({ default: m.TerminalPanel })),
 );
 
-function TentacleEmblem({ size = 20 }: { size?: number }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={size}
-      height={size}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="8" r="4.5" />
-      <path d="M8 12c0 3-1.5 4-3 5M12 12.5c0 3.5-.5 5-1.5 6.5M16 12c0 3 1.5 4 3 5" />
-    </svg>
-  );
+function useKnockEasterEgg(): {
+  knocking: boolean;
+  knockNonce: number;
+  triggerKnock: () => void;
+} {
+  const [knocking, setKnocking] = useState(false);
+  const [knockNonce, setKnockNonce] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  const triggerKnock = useCallback(() => {
+    setKnocking(true);
+    setKnockNonce((n) => n + 1);
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+    }
+    timerRef.current = window.setTimeout(() => {
+      setKnocking(false);
+      timerRef.current = null;
+    }, 1500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return { knocking, knockNonce, triggerKnock };
 }
 
 function PanelBadge({ id, collapsed = false }: { id: PanelId; collapsed?: boolean }) {
@@ -166,6 +179,7 @@ export function WorkbenchLayout() {
   const compact = useIsCompactLayout();
   const agentName = useChatStore((s) => s.settings.agent_name || "Tentacle");
   const wsStatus = useChatStore((s) => s.wsStatus);
+  const { knocking, knockNonce, triggerKnock } = useKnockEasterEgg();
 
   const primaryPanel = useLayoutStore((s) => s.primaryPanel);
   const secondaryPanel = useLayoutStore((s) => s.secondaryPanel);
@@ -281,7 +295,7 @@ export function WorkbenchLayout() {
             >
               <div className="mb-3 flex items-center justify-between px-2">
                 <span className="flex items-center gap-2 text-sm font-semibold text-fg">
-                  <TentacleEmblem size={18} />
+                  <TentacleMascot pose="knock" size={22} className="text-accent" />
                   <span>{agentName} 工作台</span>
                 </span>
                 <button
@@ -371,13 +385,22 @@ export function WorkbenchLayout() {
               sidebarCollapsed ? "flex-col gap-1.5" : "justify-between px-3",
             )}
           >
-            <div
-              className="flex min-w-0 items-center gap-2.5"
-              title={agentName}
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent">
-                <TentacleEmblem size={18} />
-              </div>
+            <div className="flex min-w-0 items-center gap-2.5" title={agentName}>
+              <button
+                type="button"
+                data-testid="brand-mascot-btn"
+                aria-label={`${agentName} 徽标`}
+                title={agentName}
+                onClick={triggerKnock}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <TentacleMascot
+                  pose="knock"
+                  size={23}
+                  animate={knocking ? "once" : "none"}
+                  triggerKey={knockNonce}
+                />
+              </button>
               {!sidebarCollapsed && (
                 <span className="truncate text-sm font-semibold tracking-tight text-fg">
                   {agentName}

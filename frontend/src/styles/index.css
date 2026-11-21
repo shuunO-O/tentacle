@@ -242,9 +242,295 @@
   animation: pulse-caret 1s infinite ease-in-out;
 }
 
+/* Tentacle mascot micro-animations */
+.tentacle-mascot .tm-dyn-only {
+  opacity: 0;
+}
+
+.tentacle-mascot .tm-static-cue {
+  transition: opacity 180ms ease;
+}
+
+@keyframes tm-knock-once-swing {
+  0% { transform: rotate(0deg) scale(1); }
+  14% { transform: rotate(-10deg) scale(0.95); }
+  28% { transform: rotate(6.5deg) scale(1.06); }
+  42% { transform: rotate(-6deg) scale(0.97); }
+  56% { transform: rotate(7.5deg) scale(1.07); }
+  82%, 100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes tm-knock-once-arc1 {
+  0%, 24% { transform: scale(0.84); opacity: 0; }
+  31% { transform: scale(1); opacity: 0.94; }
+  56%, 100% { transform: scale(1.24); opacity: 0; }
+}
+
+@keyframes tm-knock-once-arc2 {
+  0%, 52% { transform: scale(0.84); opacity: 0; }
+  59% { transform: scale(1); opacity: 0.96; }
+  90%, 100% { transform: scale(1.28); opacity: 0; }
+}
+
+@keyframes tm-knock-once-lean {
+  0%, 16% { transform: translate(0, 0); }
+  28% { transform: translate(0.75px, 0.2px); }
+  42% { transform: translate(0.1px, 0); }
+  56% { transform: translate(0.85px, 0.2px); }
+  82%, 100% { transform: translate(0, 0); }
+}
+
+@keyframes tm-knock-once-blink {
+  0%, 74%, 88%, 100% { transform: scaleY(1); }
+  81% { transform: scaleY(0.14); }
+}
+
+@keyframes tm-knock-loop-swing {
+  0%, 10% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(-10deg) scale(0.95); }
+  21% { transform: rotate(6.5deg) scale(1.06); }
+  27% { transform: rotate(-6deg) scale(0.97); }
+  33% { transform: rotate(7.5deg) scale(1.07); }
+  46%, 100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes tm-knock-loop-arc1 {
+  0%, 19% { transform: scale(0.84); opacity: 0; }
+  22% { transform: scale(1); opacity: 0.94; }
+  36%, 100% { transform: scale(1.24); opacity: 0; }
+}
+
+@keyframes tm-knock-loop-arc2 {
+  0%, 31% { transform: scale(0.84); opacity: 0; }
+  34% { transform: scale(1); opacity: 0.96; }
+  50%, 100% { transform: scale(1.28); opacity: 0; }
+}
+
+@keyframes tm-knock-loop-lean {
+  0%, 12% { transform: translate(0, 0); }
+  21% { transform: translate(0.75px, 0.2px); }
+  27% { transform: translate(0.1px, 0); }
+  33% { transform: translate(0.85px, 0.2px); }
+  46%, 100% { transform: translate(0, 0); }
+}
+
+@keyframes tm-knock-loop-blink {
+  0%, 60%, 66%, 100% { transform: scaleY(1); }
+  63% { transform: scaleY(0.14); }
+}
+
+@keyframes tm-wave-arm {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-11deg); }
+  40% { transform: rotate(9deg); }
+  60% { transform: rotate(-10deg); }
+  80% { transform: rotate(7deg); }
+}
+
+@keyframes tm-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.3px); }
+}
+
+@keyframes tm-think-d1 {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  30% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes tm-think-d2 {
+  0%, 100% { opacity: 0.35; transform: scale(0.9); }
+  52% { opacity: 1; transform: scale(1.12); }
+}
+
+@keyframes tm-think-d3 {
+  0%, 100% { opacity: 0.45; transform: scale(0.94); }
+  74% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes tm-think-arm {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-3.5deg); }
+}
+
+@keyframes tm-reach-arm {
+  0%, 100% { transform: translateX(0); }
+  42%, 58% { transform: translateX(1.6px); }
+}
+
+@keyframes tm-reach-ping {
+  0%, 34% { transform: scale(0.7); opacity: 0; }
+  44% { transform: scale(1); opacity: 0.85; }
+  78%, 100% { transform: scale(1.48); opacity: 0; }
+}
+
+@keyframes tm-sleep-breath {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  50% { transform: translateY(-1.1px) scaleY(1.03); }
+}
+
+@keyframes tm-sleep-z1 {
+  0% { transform: translate(0, 2px) scale(0.86); opacity: 0; }
+  32% { opacity: 0.78; }
+  84%, 100% { transform: translate(1.8px, -3.6px) scale(1.02); opacity: 0; }
+}
+
+@keyframes tm-sleep-z2 {
+  0%, 24% { transform: translate(0, 2px) scale(0.86); opacity: 0; }
+  54% { opacity: 0.88; }
+  100% { transform: translate(2.2px, -4.4px) scale(1.06); opacity: 0; }
+}
+
+@keyframes tm-cheer-hop {
+  0%, 100% { transform: translateY(0); }
+  18% { transform: translateY(-2.8px); }
+  34% { transform: translateY(0); }
+  50% { transform: translateY(-2.2px); }
+  68% { transform: translateY(0); }
+}
+
+@keyframes tm-cheer-l {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 50% { transform: rotate(10deg); }
+  35% { transform: rotate(-4deg); }
+}
+
+@keyframes tm-cheer-r {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 50% { transform: rotate(-10deg); }
+  35% { transform: rotate(4deg); }
+}
+
+@keyframes tm-cheer-sparks {
+  0%, 100% { opacity: 0.35; transform: scale(0.88); }
+  22%, 52% { opacity: 1; transform: scale(1.12); }
+}
+
+/* One-shot animations (e.g. polite click-to-knock or welcome wave) */
+.tentacle-mascot.tm-once .tm-knuckle-arm {
+  animation: tm-knock-once-swing 1.45s cubic-bezier(0.24, 0.82, 0.34, 1) 1;
+}
+.tentacle-mascot.tm-once .tm-arc-b1 {
+  animation: tm-knock-once-arc1 1.45s ease-out 1;
+}
+.tentacle-mascot.tm-once .tm-arc-b2 {
+  animation: tm-knock-once-arc2 1.45s ease-out 1;
+}
+.tentacle-mascot.tm-once .tm-lean {
+  animation: tm-knock-once-lean 1.45s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-static-cue {
+  opacity: 0.22;
+}
+.tentacle-mascot.tm-once .tm-eye-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tm-knock-once-blink 1.45s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-wave-arm {
+  animation: tm-wave-arm 1.6s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-bob-body {
+  animation: tm-bob 1.6s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-cheer-body {
+  animation: tm-cheer-hop 1.8s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-cheer-arm-l {
+  animation: tm-cheer-l 1.8s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-cheer-arm-r {
+  animation: tm-cheer-r 1.8s ease-in-out 1;
+}
+.tentacle-mascot.tm-once .tm-cheer-sparks {
+  transform-origin: 32px 10px;
+  animation: tm-cheer-sparks 1.8s ease-in-out 1;
+}
+
+/* Continuous ambient animations (thinking / reaching / sleeping / active preview) */
+.tentacle-mascot.tm-loop .tm-knuckle-arm {
+  animation: tm-knock-loop-swing 3.2s cubic-bezier(0.24, 0.82, 0.34, 1) infinite;
+}
+.tentacle-mascot.tm-loop .tm-arc-b1 {
+  animation: tm-knock-loop-arc1 3.2s ease-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-arc-b2 {
+  animation: tm-knock-loop-arc2 3.2s ease-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-lean {
+  animation: tm-knock-loop-lean 3.2s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-static-cue {
+  opacity: 0.22;
+}
+.tentacle-mascot.tm-loop .tm-eye-blink {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tm-knock-loop-blink 3.2s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-wave-arm {
+  animation: tm-wave-arm 2.2s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-bob-body {
+  animation: tm-bob 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-think-d1 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tm-think-d1 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-think-d2 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tm-think-d2 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-think-d3 {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tm-think-d3 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-think-arm {
+  animation: tm-think-arm 2.8s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-reach-arm {
+  animation: tm-reach-arm 2.6s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-reach-ping {
+  animation: tm-reach-ping 2.6s ease-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-sleep-body {
+  transform-origin: 28px 42px;
+  animation: tm-sleep-breath 3.8s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-sleep-z1 {
+  animation: tm-sleep-z1 3.8s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-sleep-z2 {
+  animation: tm-sleep-z2 3.8s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-cheer-body {
+  animation: tm-cheer-hop 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-cheer-arm-l {
+  animation: tm-cheer-l 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-cheer-arm-r {
+  animation: tm-cheer-r 2.4s ease-in-out infinite;
+}
+.tentacle-mascot.tm-loop .tm-cheer-sparks {
+  transform-origin: 32px 10px;
+  animation: tm-cheer-sparks 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .stream-caret {
-    animation: none;
+  .stream-caret,
+  .tentacle-mascot * {
+    animation: none !important;
+  }
+  .tentacle-mascot .tm-dyn-only {
+    opacity: 0 !important;
+  }
+  .tentacle-mascot .tm-static-cue {
+    opacity: 1 !important;
   }
   * {
     transition-duration: 0.01ms !important;

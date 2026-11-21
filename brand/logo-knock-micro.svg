@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 64 64" fill="none" stroke="#d97757" stroke-linecap="round" stroke-linejoin="round">
+  <g opacity="0.92">
+    <g stroke-width="3.6">
+      <path d="M 16.0 32.3 C 13.8 38.0, 10.2 41.2, 6.5 40.3"/>
+      <path d="M 21.0 33.0 C 20.4 39.6, 18.4 44.6, 15.1 47.4"/>
+      <path d="M 26.0 32.9 C 26.0 40.0, 27.0 45.0, 25.9 49.8"/>
+      <path d="M 31.0 32.1 C 32.0 39.0, 34.2 44.0, 36.7 47.0"/>
+    </g>
+    <g fill="#d97757" stroke="none">
+      <circle cx="6.5" cy="40.3" r="2.7"/>
+      <circle cx="15.1" cy="47.4" r="2.7"/>
+      <circle cx="25.9" cy="49.8" r="2.7"/>
+      <circle cx="36.7" cy="47.0" r="2.7"/>
+    </g>
+  </g>
+  <g transform="rotate(-5 25.5 26)">
+    <path d="M 12.46 29.49 A 13.5 13.5 0 1 1 38.54 29.49 A 35 35 0 0 1 12.46 29.49 Z" fill="#d97757" fill-opacity="0.18" stroke-width="4.1"/>
+    <g fill="#d97757" stroke="none">
+      <circle cx="21.8" cy="25.4" r="2.45"/>
+      <circle cx="31.6" cy="25.4" r="2.45"/>
+    </g>
+  </g>
+  <path d="M 36.39 30.05 A 8.9 8.9 0 0 0 53.0 25.6 A 5.5 5.5 0 0 0 47.5 20.1 A 3.4 3.4 0 0 0 44.1 23.5 A 2.1 2.1 0 0 0 46.2 25.6" stroke-width="4.1" fill="none"/>
+  <g transform="translate(47.5, 25.6)">
+    <path d="M 6.91 -6.67 A 9.6 9.6 0 0 1 7.96 5.37" stroke-width="2.7" opacity="0.9"/>
+  </g>
+</svg>

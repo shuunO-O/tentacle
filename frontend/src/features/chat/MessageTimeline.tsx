@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, Check, ChevronRight, Copy, Search, Wrench } from "lucide-react";
 import { mediaContentUrl } from "../../api/client";
+import { TentacleMascot } from "../../components/brand/TentacleMascot";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { cn } from "../../components/ui/Button";
@@ -653,19 +654,7 @@ export function MessageTimeline({ onFillPrompt, onOpenImage }: MessageTimelinePr
           {isEmpty ? (
             <div className="flex min-h-[55vh] flex-col items-center justify-center px-4 text-center">
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-elevated text-accent shadow-xs">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="28"
-                  height="28"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="8" r="4.5" />
-                  <path d="M8 12c0 3-1.5 4-3 5M12 12.5c0 3.5-.5 5-1.5 6.5M16 12c0 3 1.5 4 3 5M10 12.5c-.5 3-2 4.5-4 5.5M14 12.5c.5 3 2 4.5 4 5.5" />
-                </svg>
+                <TentacleMascot pose="knock" size={38} />
               </div>
               <h2 className="text-xl font-semibold text-fg">{agentName}</h2>
               <p className="mt-1.5 max-w-md text-sm text-fg-dim">
