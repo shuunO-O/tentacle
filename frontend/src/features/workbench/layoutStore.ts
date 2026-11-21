@@ -6,7 +6,7 @@ import {
   type WsMaintenanceUpdatedData,
   type WsSubagentUpdatedData,
 } from "../../api/ws";
-import { getPanelDef, panelFromPathname, type PanelId } from "./panels";
+import { getPanelDef, panelFromPathname, type PanelId, type PluginUiEntry } from "./panels";
 
 export type DrawerTab = "terminal" | "activity";
 
@@ -75,6 +75,7 @@ interface LayoutState {
   pendingChatPrompt: string | null;
   graphFocusConceptId: string | null;
   domainStatus: DomainStatusSnapshot;
+  pluginUis: PluginUiEntry[];
 
   openPanel: (id: PanelId, opts?: { inSplit?: boolean; skipPushState?: boolean }) => void;
   toggleSidebar: () => void;
@@ -126,6 +127,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     updateAvailable: false,
     latestEventNote: null,
   },
+  pluginUis: [],
 
   openPanel: (id, opts = {}) => {
     const state = get();
@@ -232,6 +234,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   clearGraphFocusConcept: () => set({ graphFocusConceptId: null }),
 }));
+
+export async function refreshPluginUis(): Promise<void> {
+  try {
+    const res = await apiFetch<{ items?: PluginUiEntry[] }>("/api/plugins/ui");
+    if (Array.isArray(res?.items)) {
+      useLayoutStore.setState({ pluginUis: res.items });
+    }
+  } catch {
+    // Ignore transient boot fetch errors; PluginsPanel refreshes when opened.
+  }
+}
 
 export async function refreshSubagentStatus(): Promise<void> {
   try {

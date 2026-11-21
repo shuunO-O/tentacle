@@ -32,7 +32,7 @@
 
 ### `manifest.yaml` 关键字段
 - 必填：`id`（与目录名一致，`^[a-z][a-z0-9_-]{0,47}$`）、`name`、`version`
-- 可选：`description`、`author`、`entrypoint`（如 `plugin.py:setup`）、`permissions`、`requires_env`、`optional_env`、`skills_dir`（需 `skills:provide`）、`prompt_file`（需 `prompts:append`）、`config_schema`
+- 可选：`description`、`author`、`entrypoint`（如 `plugin.py:setup`）、`permissions`、`requires_env`、`optional_env`、`skills_dir`（需 `skills:provide`）、`prompt_file`（需 `prompts:append`）、`ui`（需 `web:ui`，包含 `dir`、`entry`、`title`、`description`、`placement: sidebar | plugins_only`，省略时若存在 `ui/index.html` 自动识别）、`config_schema`
 
 ### 权限与受控接口（[permissions.py](../plugins/permissions.py)、[context.py](../plugins/context.py)、[services.py](../plugins/services.py)）
 
@@ -50,7 +50,8 @@
 | `scheduler:read` / `scheduler:write` | `ctx.scheduler`：`list_active`、`get_detail`、`update` |
 | `situation:write` | `ctx.situation`：`read_situation`、`write_situation`、`add_note`、`remove_note` |
 | `channels:register` | `ctx.register_channel(platform, *, sender, event_callback=None, description="", supports_target=False, target_description="")` + `ctx.emit_user_message(..., platform=..., user_id=None, images=None)`，动态挂载 `send_message` 与 `EventFanout`（仅在至少注册一个外部通道时向模型暴露 `send_message`） |
-| `web:routes` | `ctx.register_router(router)`（挂载 `/api/plugins/ext/<id>/*`，强制走 `DeviceAccessGate` 与 `auth_dep`）；`ctx.web`：`session_owner(request)`、`make_session_guard(request)`、`broadcast(event)`、`retain_task(coro)` |
+| `web:routes` | `ctx.register_router(router)`（挂载 `/api/plugins/ext/<id>/*`，强制走 `DeviceAccessGate` 与 `auth_dep`）；`ctx.web`：`session_owner(request)`、`make_session_guard(request)`、`broadcast(event)`、`emit_ui_event(event, payload)`、`retain_task(coro)` |
+| `web:ui` | 在 WebUI 工作台以独立源沙箱（`<iframe sandbox="allow-scripts allow-forms allow-downloads">` + `connect-src 'none'`）加载插件 `ui/` 目录；页面可通过宿主注入的 `window.tentacle` 桥接调用 `fetch(path, init)`（仅限 `/api/plugins/ext/<id>/*`）、`asset(relPath, opts)`、`toast(msg, variant)`、`askChat(prompt)`、`openChat()`、`onThemeChange(cb)`、`onEvent(cb)`，后端可通过 `ctx.web.emit_ui_event(event, payload)` 推送实时事件 |
 | `web:routes` + `hooks:mutate` | `ctx.register_http_chat_adapter(adapter)`：拦截 `POST /api/chat/send`，可验证客户端头与通用 `client_meta`，提供每轮 `enter()` / `finish(status)` / `exit()` 上下文绑定与 `shield_disconnect=True` 断线保活 |
 | `background:task` | `ctx.create_background_task(coro_or_factory, *, name="")` 随插件启动与卸载统一回收 |
 | `mcp:connect` | 供外部 MCP 客户端能力标识（MCP 服务配置统一存于 `plugins.mcp.*`） |

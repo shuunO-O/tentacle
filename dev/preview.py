@@ -182,6 +182,10 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
     for route in spa_routes:
         app.add_api_route(route, index, methods=["GET"], include_in_schema=False)
 
+    @app.get("/plugin/{plugin_id}", include_in_schema=False)
+    async def spa_plugin_ui(plugin_id: str):
+        return await index()
+
     @app.get("/favicon.ico")
     async def favicon():
         icon = ROOT / "web/static/favicon.svg"

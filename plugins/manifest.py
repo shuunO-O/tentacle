@@ -20,6 +20,8 @@ CONFIG_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 SAFE_TOOL_CHARS_RE = re.compile(r"[^A-Za-z0-9_-]")
 CONFIG_TYPES = {"string", "integer", "number", "boolean", "env", "proxy", "catalog_url", "string_list"}
 RESERVED_PLUGIN_IDS = {"bundled"}
+UI_PLACEMENTS = {"sidebar", "plugins_only"}
+UI_HTML_SUFFIXES = {".html", ".htm"}
 
 
 def qualify_tool_name(prefix: str, item_id: str, raw_name: str) -> str:
@@ -93,6 +95,26 @@ class ConfigFieldSpec:
 
 
 @dataclass(frozen=True)
+class PluginUiSpec:
+    """插件自定义沙箱 WebUI 入口声明。"""
+
+    dir: str = "ui"
+    entry: str = "index.html"
+    title: str = ""
+    description: str = ""
+    placement: str = "sidebar"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "dir": self.dir,
+            "entry": self.entry,
+            "title": self.title,
+            "description": self.description,
+            "placement": self.placement,
+        }
+
+
+@dataclass(frozen=True)
 class PluginManifest:
     """插件 manifest.yaml 结构化定义。"""
 
@@ -107,6 +129,7 @@ class PluginManifest:
     optional_env: tuple[str, ...] = ()
     skills_dir: str | None = None
     prompt_file: str | None = None
+    ui: PluginUiSpec | None = None
     config_schema: dict[str, ConfigFieldSpec] = field(default_factory=dict)
     root_dir: Path | None = None
 
@@ -124,6 +147,7 @@ class PluginManifest:
             "optional_env": list(self.optional_env),
             "skills_dir": self.skills_dir,
             "prompt_file": self.prompt_file,
+            "ui": self.ui.to_dict() if self.ui is not None else None,
             "config_schema": {k: v.to_dict() for k, v in self.config_schema.items()},
         }
 
@@ -179,6 +203,56 @@ def _parse_env_list(raw_env: object, field_name: str = "requires_env") -> tuple[
         if cleaned not in names:
             names.append(cleaned)
     return tuple(names)
+
+
+def _parse_ui_spec(
+    raw_ui: object,
+    *,
+    plugin_dir: Path,
+    permissions: tuple[str, ...],
+    default_title: str,
+    default_description: str,
+) -> PluginUiSpec | None:
+    if raw_ui is None:
+        if "web:ui" in permissions and (plugin_dir / "ui" / "index.html").is_file():
+            ui_dir_path = resolve_plugin_subpath(plugin_dir, "ui", allow_dir=True, allow_file=False)
+            resolve_plugin_subpath(ui_dir_path, "index.html", allow_dir=False, allow_file=True)
+            return PluginUiSpec(
+                dir="ui",
+                entry="index.html",
+                title=default_title,
+                description=default_description,
+                placement="sidebar",
+            )
+        return None
+
+    if "web:ui" not in permissions:
+        raise PluginManifestError("声明 ui 需要同时申请 permissions: web:ui")
+    if not isinstance(raw_ui, dict):
+        raise PluginManifestError("manifest.ui 必须为配置对象")
+
+    ui_dir = str(raw_ui.get("dir") or "ui").strip()
+    ui_entry = str(raw_ui.get("entry") or "index.html").strip()
+    ui_dir_path = resolve_plugin_subpath(plugin_dir, ui_dir, allow_dir=True, allow_file=False)
+    entry_path = resolve_plugin_subpath(ui_dir_path, ui_entry, allow_dir=False, allow_file=True)
+    if entry_path.suffix.lower() not in UI_HTML_SUFFIXES:
+        raise PluginManifestError(f"manifest.ui.entry 必须为 HTML 文件: {ui_entry!r}")
+
+    placement = str(raw_ui.get("placement") or "sidebar").strip()
+    if placement not in UI_PLACEMENTS:
+        raise PluginManifestError(f"manifest.ui.placement 不支持: {placement!r}（可选: sidebar, plugins_only）")
+
+    raw_title = raw_ui.get("title")
+    title = str(raw_title).strip() if isinstance(raw_title, str) and raw_title.strip() else default_title
+    raw_desc = raw_ui.get("description")
+    description = str(raw_desc).strip() if isinstance(raw_desc, str) else default_description
+    return PluginUiSpec(
+        dir=ui_dir,
+        entry=ui_entry,
+        title=title,
+        description=description,
+        placement=placement,
+    )
 
 
 def parse_manifest(plugin_dir: Path) -> PluginManifest:
@@ -242,11 +316,20 @@ def parse_manifest(plugin_dir: Path) -> PluginManifest:
         resolve_plugin_subpath(plugin_dir, "prompts/guild.md", allow_dir=False, allow_file=True)
         prompt_file = "prompts/guild.md"
 
+    description = str(data.get("description") or "").strip()
+    ui_spec = _parse_ui_spec(
+        data.get("ui"),
+        plugin_dir=plugin_dir,
+        permissions=permissions,
+        default_title=name.strip(),
+        default_description=description,
+    )
+
     return PluginManifest(
         id=plugin_id,
         name=name.strip(),
         version=version,
-        description=str(data.get("description") or "").strip(),
+        description=description,
         author=str(data.get("author") or "").strip(),
         entrypoint=entrypoint,
         permissions=permissions,
@@ -254,6 +337,7 @@ def parse_manifest(plugin_dir: Path) -> PluginManifest:
         optional_env=optional_env,
         skills_dir=skills_dir,
         prompt_file=prompt_file,
+        ui=ui_spec,
         config_schema=config_schema,
         root_dir=plugin_dir,
     )

@@ -303,6 +303,109 @@
         }
       }
     },
+    "/api/plugins/ui": {
+      "get": {
+        "summary": "List Plugin Uis",
+        "operationId": "list_plugin_uis_api_plugins_ui_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginUiListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/{plugin_id}/ui/document": {
+      "get": {
+        "summary": "Get Plugin Ui Document",
+        "operationId": "get_plugin_ui_document_api_plugins__plugin_id__ui_document_get",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plugin Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PluginUiDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/{plugin_id}/ui/assets/{asset_path}": {
+      "get": {
+        "summary": "Get Plugin Ui Asset",
+        "operationId": "get_plugin_ui_asset_api_plugins__plugin_id__ui_assets__asset_path__get",
+        "parameters": [
+          {
+            "name": "plugin_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plugin Id"
+            }
+          },
+          {
+            "name": "asset_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plugins/local/{plugin_id}/decision": {
       "post": {
         "summary": "Decide Local Plugin",
@@ -5952,6 +6055,122 @@
         ],
         "title": "PluginRestartBody"
       },
+      "PluginUiDocumentResponse": {
+        "properties": {
+          "plugin_id": {
+            "type": "string",
+            "title": "Plugin Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "sidebar",
+              "plugins_only"
+            ],
+            "title": "Placement",
+            "default": "sidebar"
+          },
+          "has_routes": {
+            "type": "boolean",
+            "title": "Has Routes",
+            "default": false
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "plugin_id",
+          "name",
+          "title",
+          "html"
+        ],
+        "title": "PluginUiDocumentResponse"
+      },
+      "PluginUiItemDto": {
+        "properties": {
+          "plugin_id": {
+            "type": "string",
+            "title": "Plugin Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "default": ""
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "sidebar",
+              "plugins_only"
+            ],
+            "title": "Placement",
+            "default": "sidebar"
+          },
+          "has_routes": {
+            "type": "boolean",
+            "title": "Has Routes",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "plugin_id",
+          "name",
+          "title"
+        ],
+        "title": "PluginUiItemDto"
+      },
+      "PluginUiListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PluginUiItemDto"
+            },
+            "type": "array",
+            "title": "Items",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "title": "PluginUiListResponse"
+      },
       "PluginsSnapshotResponse": {
         "properties": {
           "revision": {
@@ -6614,7 +6833,8 @@
               "subagent.updated",
               "dedup.progress",
               "maintenance.updated",
-              "status.snapshot"
+              "status.snapshot",
+              "plugin.ui_event"
             ],
             "title": "Type",
             "type": "string"

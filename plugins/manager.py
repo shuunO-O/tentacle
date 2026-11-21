@@ -106,6 +106,7 @@ class PluginState:
     skills: list[str] = field(default_factory=list)
     channels: list[str] = field(default_factory=list)
     routes: list[str] = field(default_factory=list)
+    ui: dict[str, Any] | None = None
     background_tasks: int = 0
     missing_env: list[str] = field(default_factory=list)
     env_vars: list[str] = field(default_factory=list)
@@ -133,6 +134,7 @@ class PluginState:
             "skills": list(self.skills),
             "channels": list(self.channels),
             "routes": list(self.routes),
+            "ui": deepcopy(self.ui) if self.ui is not None else None,
             "background_tasks": self.background_tasks,
             "missing_env": list(self.missing_env),
             "env_vars": list(self.env_vars),
@@ -458,6 +460,7 @@ class PluginManager:
         module = None
         skill_dir: Path | None = None
         prompt_fragment: str | None = None
+        ui_dir: Path | None = None
 
         try:
             if manifest.skills_dir:
@@ -473,6 +476,11 @@ class PluginManager:
                     prompt_fragment = fragment
                     state.has_prompt = True
 
+            if manifest.ui is not None and "web:ui" in manifest.permissions:
+                ui_dir = resolve_plugin_subpath(plugin_dir, manifest.ui.dir, allow_dir=True, allow_file=False)
+                resolve_plugin_subpath(ui_dir, manifest.ui.entry, allow_dir=False, allow_file=True)
+                state.ui = manifest.ui.to_dict()
+
             if manifest.entrypoint:
                 module, teardown_fn = await self._load_and_setup(plugin_dir, manifest, ctx)
             else:
@@ -484,6 +492,8 @@ class PluginManager:
                 "teardown": teardown_fn,
                 "skill_dir": skill_dir,
                 "prompt_fragment": prompt_fragment,
+                "ui_dir": ui_dir,
+                "ui_spec": manifest.ui if ui_dir is not None else None,
                 "channels": plugin_channels,
                 "routers": plugin_routers,
                 "http_chat_adapters": plugin_adapters,
@@ -508,6 +518,7 @@ class PluginManager:
             state.skills.clear()
             state.channels.clear()
             state.routes.clear()
+            state.ui = None
             state.background_tasks = 0
             state.has_prompt = False
             state.status = "degraded"
@@ -675,6 +686,38 @@ class PluginManager:
             for router in rt.get("routers") or ():
                 routers.append((plugin_id, router))
         return routers
+
+    def get_active_ui(self, plugin_id: str) -> tuple[Path, Any, PluginState] | None:
+        """返回已激活且具备 web:ui 权限的插件 `(ui_dir, ui_spec, state)`；未启用/未信任返回 None。"""
+        rt = self._active_runtimes.get(plugin_id)
+        state = self.states.get(plugin_id)
+        if rt is None or state is None or state.status != "active":
+            return None
+        ui_dir = rt.get("ui_dir")
+        ui_spec = rt.get("ui_spec")
+        if ui_dir is None or ui_spec is None:
+            return None
+        return ui_dir, ui_spec, state
+
+    def list_active_uis(self) -> list[dict[str, Any]]:
+        """返回所有已激活且提供自定义沙箱页面的插件清单。"""
+        items: list[dict[str, Any]] = []
+        for plugin_id in sorted(self._active_runtimes):
+            found = self.get_active_ui(plugin_id)
+            if found is None:
+                continue
+            _ui_dir, ui_spec, state = found
+            manifest = state.manifest
+            items.append({
+                "plugin_id": plugin_id,
+                "name": manifest.name if manifest else plugin_id,
+                "version": manifest.version if manifest else "",
+                "title": ui_spec.title or (manifest.name if manifest else plugin_id),
+                "description": ui_spec.description,
+                "placement": ui_spec.placement,
+                "has_routes": bool(state.routes),
+            })
+        return items
 
     def list_plugins(self) -> list[dict[str, Any]]:
         return [state.to_dict() for state in self.states.values()]

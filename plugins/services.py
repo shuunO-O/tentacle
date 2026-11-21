@@ -289,6 +289,25 @@ class WebHostProxy:
         if callable(send_fn):
             await send_fn(event)
 
+    async def emit_ui_event(self, event: str, payload: Any = None) -> None:
+        """向当前插件的沙箱 WebUI 推送实时事件（需 web:ui 或 web:routes 权限）。"""
+        if "web:ui" not in self._permissions and "web:routes" not in self._permissions:
+            require_permission(self._permissions, "web:ui", self._plugin_id)
+        event_name = str(event or "").strip()
+        if not event_name:
+            raise ValueError("UI 事件名不能为空")
+        conn = self._runtime.get("conn_manager")
+        send_fn = getattr(conn, "broadcast", None)
+        if callable(send_fn):
+            await send_fn({
+                "type": "plugin.ui_event",
+                "data": {
+                    "plugin_id": self._plugin_id,
+                    "event": event_name,
+                    "payload": payload,
+                },
+            })
+
     def retain_task(self, coro) -> asyncio.Task[Any]:
         """托管需要在 HTTP 连接关闭后继续完成的后台协程（随 Web 服务停机清理）。"""
         self._require_web()

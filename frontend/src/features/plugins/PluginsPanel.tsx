@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
+  AppWindow,
   ChevronDown,
   ChevronRight,
   KeyRound,
@@ -19,6 +20,8 @@ import { Input, Textarea } from "../../components/ui/Input";
 import { Switch } from "../../components/ui/Switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/Tabs";
 import { toast } from "../../components/ui/Toast";
+import { useLayoutStore } from "../workbench/layoutStore";
+import { pluginPanelId } from "../workbench/panels";
 
 export interface PermissionDetail {
   permission: string;
@@ -47,6 +50,14 @@ export interface PluginToolRecord {
   enabled: boolean;
 }
 
+export interface PluginUiManifestSpec {
+  dir: string;
+  entry: string;
+  title?: string;
+  description?: string;
+  placement?: "sidebar" | "plugins_only";
+}
+
 export interface LocalPluginItem {
   id: string;
   kind: "local";
@@ -65,6 +76,7 @@ export interface LocalPluginItem {
     author?: string;
     permissions?: string[];
     requires_env?: string[];
+    ui?: PluginUiManifestSpec | null;
     config_schema?: Record<string, ConfigFieldSchema>;
   } | null;
   permission_details?: PermissionDetail[];
@@ -78,6 +90,7 @@ export interface LocalPluginItem {
   skills?: string[];
   channels?: string[];
   routes?: string[];
+  ui?: PluginUiManifestSpec | null;
   background_tasks?: number;
   missing_env?: string[];
   env_vars?: string[];
@@ -158,6 +171,7 @@ function formatKeyValueLines(obj: unknown): string {
 }
 
 export function PluginsPanel() {
+  const openPanel = useLayoutStore((s) => s.openPanel);
   const [snapshot, setSnapshot] = useState<PluginsSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -547,6 +561,8 @@ export function PluginsPanel() {
                 if (schemaCount > 0) summaryParts.push(`配置项 ${schemaCount}`);
                 if (envCount > 0) summaryParts.push(`环境变量 ${envCount}`);
                 if ((plugin.skills?.length ?? 0) > 0) summaryParts.push(`Skills ${plugin.skills!.length}`);
+                if (plugin.ui || plugin.manifest?.ui) summaryParts.push("自定义页面");
+                const canOpenUi = plugin.status === "active" && Boolean(plugin.ui);
                 return (
                   <div
                     key={plugin.id}
@@ -576,6 +592,17 @@ export function PluginsPanel() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {canOpenUi && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            aria-label={`打开 ${plugin.id} 页面`}
+                            onClick={() => openPanel(pluginPanelId(plugin.id))}
+                          >
+                            <AppWindow className="h-3.5 w-3.5 text-accent" />
+                            打开页面
+                          </Button>
+                        )}
                         {plugin.status === "pending" && (
                           <Button
                             size="sm"

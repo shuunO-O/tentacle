@@ -193,6 +193,10 @@ def create_app(
     for route in spa_routes:
         app.add_api_route(route, spa_index, methods=["GET"], include_in_schema=False)
 
+    @app.get("/plugin/{plugin_id}", include_in_schema=False)
+    async def spa_plugin_ui(plugin_id: str):
+        return FileResponse(str(static_dir / "index.html"))
+
     @app.get("/favicon.ico")
     async def favicon():
         return FileResponse(str(static_dir / "favicon.svg"))

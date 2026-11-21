@@ -24,6 +24,7 @@ PERMISSION_CATALOG: dict[str, dict[str, str]] = {
     "situation:write": {"level": "high", "summary": "更新当前近况与随手记（keep_in_mind / situation）"},
     "channels:register": {"level": "high", "summary": "注册新的双向消息平台通道（send_message + EventFanout）"},
     "web:routes": {"level": "high", "summary": "挂载受设备与密码鉴权保护的后端 API 子路由"},
+    "web:ui": {"level": "medium", "summary": "在 WebUI 沙箱工作区中挂载自定义交互页面"},
     "network:outbound": {"level": "medium", "summary": "访问外部网络或服务"},
     "background:task": {"level": "high", "summary": "随服务启停运行后台长连接、轮询或常驻任务"},
     "mcp:connect": {"level": "medium", "summary": "连接并托管外部 MCP 工具服务"},

@@ -420,6 +420,31 @@ class PluginsSnapshotResponse(FlexibleModel):
     restart: dict[str, Any]
 
 
+class PluginUiItemDto(FlexibleModel):
+    plugin_id: str
+    name: str
+    version: str = ""
+    title: str
+    description: str = ""
+    placement: Literal["sidebar", "plugins_only"] = "sidebar"
+    has_routes: bool = False
+
+
+class PluginUiListResponse(FlexibleModel):
+    items: list[PluginUiItemDto] = []
+
+
+class PluginUiDocumentResponse(FlexibleModel):
+    plugin_id: str
+    name: str
+    version: str = ""
+    title: str
+    description: str = ""
+    placement: Literal["sidebar", "plugins_only"] = "sidebar"
+    has_routes: bool = False
+    html: str
+
+
 class SubagentListResponse(FlexibleModel):
     enabled: bool
     tasks: list[dict[str, Any]]
@@ -517,6 +542,7 @@ class WsEventEnvelope(FlexibleModel):
         "dedup.progress",
         "maintenance.updated",
         "status.snapshot",
+        "plugin.ui_event",
     ]
     data: Any = None
     round: dict[str, Any] | None = None

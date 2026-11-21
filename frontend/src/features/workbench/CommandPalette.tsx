@@ -4,7 +4,7 @@ import { Code2, Columns2, Moon, Search, Sun, Terminal } from "lucide-react";
 import { useThemeStore } from "../../stores/themeStore";
 import { openDshWorkspace } from "../subagents/dsh";
 import { useLayoutStore } from "./layoutStore";
-import { PANELS, useIsCompactLayout } from "./panels";
+import { buildPluginPanelDef, PANELS, useIsCompactLayout } from "./panels";
 
 export function CommandPalette() {
   const open = useLayoutStore((s) => s.commandPaletteOpen);
@@ -14,11 +14,13 @@ export function CommandPalette() {
   const closeSplit = useLayoutStore((s) => s.closeSplit);
   const secondaryPanel = useLayoutStore((s) => s.secondaryPanel);
   const codingEnabled = useLayoutStore((s) => s.domainStatus.codingEnabled);
+  const pluginUis = useLayoutStore((s) => s.pluginUis);
   const askChatPrompt = useLayoutStore((s) => s.askChatPrompt);
 
   const resolvedTheme = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const compact = useIsCompactLayout();
+  const allPanels = [...PANELS, ...pluginUis.map(buildPluginPanelDef)];
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -66,7 +68,7 @@ export function CommandPalette() {
             </Command.Empty>
 
             <Command.Group heading="工作区面板" className="px-2 py-1 text-[11px] font-medium text-fg-faint">
-              {PANELS.map((panel) => {
+              {allPanels.map((panel) => {
                 const Icon = panel.icon;
                 return (
                   <Command.Item
@@ -90,7 +92,7 @@ export function CommandPalette() {
 
             {!compact && (
               <Command.Group heading="分屏与抽屉" className="mt-2 px-2 py-1 text-[11px] font-medium text-fg-faint">
-                {PANELS.filter((p) => p.id !== "terminal").map((panel) => (
+                {allPanels.filter((p) => p.id !== "terminal").map((panel) => (
                   <Command.Item
                     key={`split-${panel.id}`}
                     value={`分屏 split ${panel.label} ${panel.id}`}

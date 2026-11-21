@@ -10,13 +10,15 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import FileResponse
 
 from config.environment import dotenv_update, updated_env_keys
 from config.store import ConfigStore, ConfigurationConflict, ConfigurationError, Field, atomic_write, validate_value
 from plugins.installer import remove_local_plugin
-from plugins.manifest import bundled_plugins_dir, discover_plugin_dirs, parse_manifest
+from plugins.manifest import PLUGIN_ID_RE, bundled_plugins_dir, discover_plugin_dirs, parse_manifest
 from plugins.mcp_client import parse_mcp_config, resolve_mcp_secrets
 from plugins.permissions import PERMISSION_CATALOG, PluginManifestError, describe_permissions
+from plugins.ui_bundle import build_plugin_ui_document, resolve_ui_asset_file
 from runtime.paths import state_path
 from web.schemas import (
     ConfigurationRestartResponse,
@@ -24,6 +26,8 @@ from web.schemas import (
     PluginDecisionBody,
     PluginEnvWriteResponse,
     PluginRestartBody,
+    PluginUiDocumentResponse,
+    PluginUiListResponse,
     PluginsSnapshotResponse,
 )
 
@@ -190,6 +194,7 @@ def _build_snapshot(
                     "skills": [],
                     "channels": [],
                     "routes": [],
+                    "ui": None,
                     "background_tasks": 0,
                     "missing_env": missing_env,
                     "env_vars": env_vars,
@@ -221,6 +226,7 @@ def _build_snapshot(
                 "skills": [],
                 "channels": [],
                 "routes": [],
+                "ui": None,
                 "background_tasks": 0,
                 "missing_env": [],
                 "env_vars": [],
@@ -335,6 +341,55 @@ def plugins_router(plugin_manager, auth_dep, *, config_service=None, store: Conf
     @router.get("", response_model=PluginsSnapshotResponse, response_model_exclude_unset=True)
     async def get_plugins():
         return snapshot_payload()
+
+    @router.get("/ui", response_model=PluginUiListResponse)
+    async def list_plugin_uis():
+        if plugin_manager is None or not hasattr(plugin_manager, "list_active_uis"):
+            return PluginUiListResponse(items=[])
+        return PluginUiListResponse(items=plugin_manager.list_active_uis())
+
+    def _require_active_ui(plugin_id: str):
+        if not PLUGIN_ID_RE.fullmatch(plugin_id):
+            raise HTTPException(404, f"插件 {plugin_id} 不存在")
+        if plugin_manager is None or not hasattr(plugin_manager, "get_active_ui"):
+            raise HTTPException(404, f"插件 {plugin_id} 未提供自定义页面")
+        found = plugin_manager.get_active_ui(plugin_id)
+        if found is None:
+            raise HTTPException(404, f"插件 {plugin_id} 未启用或未提供自定义页面")
+        return found
+
+    @router.get("/{plugin_id}/ui/document", response_model=PluginUiDocumentResponse)
+    async def get_plugin_ui_document(plugin_id: str):
+        ui_dir, ui_spec, state = _require_active_ui(plugin_id)
+        try:
+            doc_html = build_plugin_ui_document(ui_dir, ui_spec.entry)
+        except Exception as exc:
+            raise _map_error(exc) from None
+        manifest = state.manifest
+        return PluginUiDocumentResponse(
+            plugin_id=plugin_id,
+            name=manifest.name if manifest else plugin_id,
+            version=manifest.version if manifest else "",
+            title=ui_spec.title or (manifest.name if manifest else plugin_id),
+            description=ui_spec.description,
+            placement=ui_spec.placement,
+            has_routes=bool(state.routes),
+            html=doc_html,
+        )
+
+    @router.get("/{plugin_id}/ui/assets/{asset_path:path}")
+    async def get_plugin_ui_asset(plugin_id: str, asset_path: str):
+        ui_dir, _ui_spec, _state = _require_active_ui(plugin_id)
+        try:
+            target = resolve_ui_asset_file(ui_dir, asset_path)
+        except PluginManifestError as exc:
+            msg = str(exc)
+            if "不存在" in msg:
+                raise HTTPException(404, msg) from None
+            raise HTTPException(400, msg) from None
+        except OSError:
+            raise HTTPException(503, "插件静态资源读取失败，请稍后重试") from None
+        return FileResponse(str(target), headers={"X-Content-Type-Options": "nosniff"})
 
     @router.post("/local/{plugin_id}/decision", response_model=PluginsSnapshotResponse, response_model_exclude_unset=True)
     async def decide_local_plugin(plugin_id: str, body: PluginDecisionBody):

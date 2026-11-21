@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
+  AppWindow,
   BarChart3,
   Bot,
   Database,
@@ -14,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type PanelId =
+export type BuiltinPanelId =
   | "chat"
   | "graph"
   | "config"
@@ -27,7 +28,37 @@ export type PanelId =
   | "terminal"
   | "settings";
 
-export type PanelGroup = "chat" | "memory" | "system";
+export type PluginPanelId = `plugin:${string}`;
+
+export type PanelId = BuiltinPanelId | PluginPanelId;
+
+export type PanelGroup = "chat" | "memory" | "system" | "plugin_ui";
+
+export interface PluginUiEntry {
+  plugin_id: string;
+  name: string;
+  version: string;
+  title: string;
+  description: string;
+  placement: "sidebar" | "plugins_only";
+  has_routes: boolean;
+}
+
+const PLUGIN_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
+
+export function pluginPanelId(pluginId: string): PluginPanelId {
+  return `plugin:${pluginId}`;
+}
+
+export function isPluginPanelId(id: PanelId): id is PluginPanelId {
+  return typeof id === "string" && id.startsWith("plugin:");
+}
+
+export function pluginIdFromPanelId(id: PanelId): string | null {
+  if (!isPluginPanelId(id)) return null;
+  const pid = id.slice("plugin:".length);
+  return PLUGIN_ID_RE.test(pid) ? pid : null;
+}
 
 export interface PanelDefinition {
   id: PanelId;
@@ -139,13 +170,43 @@ export const PANELS: PanelDefinition[] = [
 
 const PANEL_MAP = new Map<PanelId, PanelDefinition>(PANELS.map((p) => [p.id, p]));
 
-export function getPanelDef(id: PanelId): PanelDefinition {
-  return PANEL_MAP.get(id) ?? PANELS[0]!;
+export function buildPluginPanelDef(entry: PluginUiEntry): PanelDefinition {
+  return {
+    id: pluginPanelId(entry.plugin_id),
+    group: "plugin_ui",
+    label: entry.title || entry.name || entry.plugin_id,
+    route: `/plugin/${entry.plugin_id}`,
+    description: entry.description || `${entry.name || entry.plugin_id} 自定义沙箱页面`,
+    icon: AppWindow,
+  };
+}
+
+export function getPanelDef(id: PanelId, pluginUis: PluginUiEntry[] = []): PanelDefinition {
+  const builtin = PANEL_MAP.get(id);
+  if (builtin) return builtin;
+  const pid = pluginIdFromPanelId(id);
+  if (pid) {
+    const matched = pluginUis.find((item) => item.plugin_id === pid);
+    if (matched) return buildPluginPanelDef(matched);
+    return {
+      id,
+      group: "plugin_ui",
+      label: pid,
+      route: `/plugin/${pid}`,
+      description: "插件自定义沙箱页面",
+      icon: AppWindow,
+    };
+  }
+  return PANELS[0]!;
 }
 
 export function panelFromPathname(pathname: string): PanelId {
   const clean = pathname.replace(/\/+$/, "") || "/";
   if (clean === "/" || clean === "/chat") return "chat";
+  const pluginMatch = clean.match(/^\/plugin\/([a-z][a-z0-9_-]{0,47})$/);
+  if (pluginMatch && pluginMatch[1]) {
+    return pluginPanelId(pluginMatch[1]);
+  }
   const matched = PANELS.find((p) => p.route !== "/" && p.route === clean);
   return matched ? matched.id : "chat";
 }

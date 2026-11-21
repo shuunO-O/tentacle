@@ -158,6 +158,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plugins/ui": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Plugin Uis */
+        get: operations["list_plugin_uis_api_plugins_ui_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plugins/{plugin_id}/ui/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plugin Ui Document */
+        get: operations["get_plugin_ui_document_api_plugins__plugin_id__ui_document_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plugins/{plugin_id}/ui/assets/{asset_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Plugin Ui Asset */
+        get: operations["get_plugin_ui_asset_api_plugins__plugin_id__ui_assets__asset_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plugins/local/{plugin_id}/decision": {
         parameters: {
             query?: never;
@@ -2531,6 +2582,82 @@ export interface components {
             /** Revision */
             revision: string;
         };
+        /** PluginUiDocumentResponse */
+        PluginUiDocumentResponse: {
+            /** Plugin Id */
+            plugin_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Placement
+             * @default sidebar
+             * @enum {string}
+             */
+            placement: "sidebar" | "plugins_only";
+            /**
+             * Has Routes
+             * @default false
+             */
+            has_routes: boolean;
+            /** Html */
+            html: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /** PluginUiItemDto */
+        PluginUiItemDto: {
+            /** Plugin Id */
+            plugin_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Title */
+            title: string;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /**
+             * Placement
+             * @default sidebar
+             * @enum {string}
+             */
+            placement: "sidebar" | "plugins_only";
+            /**
+             * Has Routes
+             * @default false
+             */
+            has_routes: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /** PluginUiListResponse */
+        PluginUiListResponse: {
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["PluginUiItemDto"][];
+        } & {
+            [key: string]: unknown;
+        };
         /** PluginsSnapshotResponse */
         PluginsSnapshotResponse: {
             /** Revision */
@@ -2781,7 +2908,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "hello" | "settings" | "thinking" | "thinking_delta" | "message" | "message_delta" | "message_seg_end" | "tool_call" | "tool_result" | "web_search" | "usage" | "final" | "round_finished" | "error" | "terminal_data" | "subagent.updated" | "dedup.progress" | "maintenance.updated" | "status.snapshot";
+            type: "hello" | "settings" | "thinking" | "thinking_delta" | "message" | "message_delta" | "message_seg_end" | "tool_call" | "tool_result" | "web_search" | "usage" | "final" | "round_finished" | "error" | "terminal_data" | "subagent.updated" | "dedup.progress" | "maintenance.updated" | "status.snapshot" | "plugin.ui_event";
             /**
              * Data
              * @default null
@@ -3202,6 +3329,89 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PluginsSnapshotResponse"];
+                };
+            };
+        };
+    };
+    list_plugin_uis_api_plugins_ui_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginUiListResponse"];
+                };
+            };
+        };
+    };
+    get_plugin_ui_document_api_plugins__plugin_id__ui_document_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PluginUiDocumentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plugin_ui_asset_api_plugins__plugin_id__ui_assets__asset_path__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_id: string;
+                asset_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

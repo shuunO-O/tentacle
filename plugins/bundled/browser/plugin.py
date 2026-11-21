@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import logging
 import os
@@ -18,6 +19,22 @@ from urllib.parse import urlsplit, urlunsplit
 
 
 logger = logging.getLogger(__name__)
+
+_ACTIVE_BRIDGES: list = []
+
+
+def _load_stream_bridge_module():
+    if __package__:
+        from . import stream_bridge
+
+        return stream_bridge
+    bridge_path = Path(__file__).resolve().parent / "stream_bridge.py"
+    spec = importlib.util.spec_from_file_location("_tentacle_browser_stream_bridge", bridge_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法加载 stream_bridge: {bridge_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 _DEFAULT_SKILLS_DIR = Path.home() / ".local" / "share" / "agent-browser" / "skills"
 _MAX_OUTPUT = 50000
@@ -268,11 +285,29 @@ async def execute_browser(args: dict, cfg: dict | None = None, upload_image_fn=N
 
 
 def setup(ctx) -> None:
-    """注册 browser 插件工具（`p_browser__browser`）。"""
+    """注册 browser 插件工具（`p_browser__browser`）与实时视口扩展路由。"""
     plugin_cfg = ctx.config
+    bridge = None
+
+    if ctx.has_permission("web:routes"):
+        stream_mod = _load_stream_bridge_module()
+        bridge = stream_mod.BrowserStreamBridge(
+            cfg=plugin_cfg,
+            run_cli_fn=run_browser_command,
+            emit_ui_event_fn=ctx.web.emit_ui_event,
+        )
+        _ACTIVE_BRIDGES.append(bridge)
+        ctx.register_router(stream_mod.create_browser_router(bridge))
 
     async def browser_tool(args: dict) -> str | list[dict]:
-        return await execute_browser(args, plugin_cfg, upload_image_fn=ctx.files.upload_image)
+        res = await execute_browser(args, plugin_cfg, upload_image_fn=ctx.files.upload_image)
+        if bridge is not None and bridge.snapshot().get("connected"):
+            try:
+                await bridge.refresh_metadata()
+                await ctx.web.emit_ui_event("stream.meta", bridge._meta_snapshot())
+            except Exception:
+                pass
+        return res
 
     ctx.register_tool(
         name="browser",
@@ -297,3 +332,13 @@ def setup(ctx) -> None:
         func=browser_tool,
         is_async=True,
     )
+
+
+async def teardown(_ctx) -> None:
+    """卸载插件时释放全部实时视口 WebSocket 连接。"""
+    while _ACTIVE_BRIDGES:
+        bridge = _ACTIVE_BRIDGES.pop()
+        try:
+            await bridge.shutdown()
+        except Exception as exc:
+            logger.debug(f"[browser] 关闭实时视口桥接失败: {exc}")

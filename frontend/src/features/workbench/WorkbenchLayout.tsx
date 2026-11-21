@@ -22,6 +22,7 @@ import { useChatStore } from "../chat/chatStore";
 import { openDshWorkspace } from "../subagents/dsh";
 import { useLayoutStore } from "./layoutStore";
 import {
+  buildPluginPanelDef,
   getPanelDef,
   PANEL_GROUPS,
   PANELS,
@@ -169,6 +170,7 @@ export function WorkbenchLayout() {
   const primaryPanel = useLayoutStore((s) => s.primaryPanel);
   const secondaryPanel = useLayoutStore((s) => s.secondaryPanel);
   const codingEnabled = useLayoutStore((s) => s.domainStatus.codingEnabled);
+  const pluginUis = useLayoutStore((s) => s.pluginUis);
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const drawerOpen = useLayoutStore((s) => s.drawerOpen);
   const mobileNavOpen = useLayoutStore((s) => s.mobileNavOpen);
@@ -185,7 +187,21 @@ export function WorkbenchLayout() {
   const resolvedTheme = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
-  const primaryDef = getPanelDef(primaryPanel);
+  const allPluginPanels = pluginUis.map(buildPluginPanelDef);
+  const sidebarPluginPanels = pluginUis
+    .filter((item) => item.placement === "sidebar")
+    .map(buildPluginPanelDef);
+  const allSplitCandidates = [...PANELS, ...allPluginPanels];
+  const navGroups =
+    sidebarPluginPanels.length > 0
+      ? [...PANEL_GROUPS, { id: "plugin_ui" as const, label: "插件页面" }]
+      : PANEL_GROUPS;
+  const navPanelsByGroup = (groupId: (typeof navGroups)[number]["id"]) =>
+    groupId === "plugin_ui"
+      ? sidebarPluginPanels
+      : PANELS.filter((panel) => panel.group === groupId);
+
+  const primaryDef = getPanelDef(primaryPanel, pluginUis);
   const themeActionLabel = resolvedTheme === "dark" ? "浅色模式" : "深色模式";
   const themeTooltip = resolvedTheme === "dark" ? "切换浅色主题" : "切换深色主题";
   const wsMeta =
@@ -268,12 +284,12 @@ export function WorkbenchLayout() {
                 </button>
               </div>
               <nav className="flex-1 space-y-3 overflow-y-auto">
-                {PANEL_GROUPS.map((group) => (
+                {navGroups.map((group) => (
                   <div key={group.id} className="space-y-1">
                     <div className="px-3 text-[10.5px] font-medium tracking-[0.12em] text-fg-faint select-none">
                       {group.label}
                     </div>
-                    {PANELS.filter((panel) => panel.group === group.id).map((panel) => {
+                    {navPanelsByGroup(group.id).map((panel) => {
                       const Icon = panel.icon;
                       const active = primaryPanel === panel.id;
                       return (
@@ -383,8 +399,8 @@ export function WorkbenchLayout() {
               sidebarCollapsed ? "flex w-full flex-col items-center gap-1 px-1.5" : "space-y-2.5 px-2",
             )}
           >
-            {PANEL_GROUPS.map((group, groupIndex) => {
-              const items = PANELS.filter((panel) => panel.group === group.id);
+            {navGroups.map((group, groupIndex) => {
+              const items = navPanelsByGroup(group.id);
               return (
                 <div key={group.id} className={cn(sidebarCollapsed ? "flex w-full flex-col items-center gap-1" : "space-y-0.5")}>
                   {!sidebarCollapsed ? (
@@ -647,7 +663,7 @@ export function WorkbenchLayout() {
                   onChange={(e) => openPanel(e.target.value as PanelId, { inSplit: true })}
                   className="h-6 rounded-md border border-border bg-elevated px-2 text-xs text-fg focus:outline-none"
                 >
-                  {PANELS.filter((panel) => panel.id !== primaryPanel).map((panel) => (
+                  {allSplitCandidates.filter((panel) => panel.id !== primaryPanel).map((panel) => (
                     <option key={panel.id} value={panel.id}>
                       {panel.label}
                     </option>

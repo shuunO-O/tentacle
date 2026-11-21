@@ -7,7 +7,7 @@ import { AuthGate } from "./features/auth/AuthGate";
 import { useAuthStore } from "./features/auth/authStore";
 import { useChatStore } from "./features/chat/chatStore";
 import { CommandPalette } from "./features/workbench/CommandPalette";
-import { refreshSubagentStatus } from "./features/workbench/layoutStore";
+import { refreshPluginUis, refreshSubagentStatus } from "./features/workbench/layoutStore";
 import { WorkbenchLayout } from "./features/workbench/WorkbenchLayout";
 
 const queryClient = new QueryClient({
@@ -38,6 +38,7 @@ export function App() {
       resetSessionState();
     } else if (phase === "authenticated") {
       void refreshSubagentStatus();
+      void refreshPluginUis();
     }
   }, [phase, resetSessionState]);
 

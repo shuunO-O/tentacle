@@ -70,6 +70,23 @@ async function handleUnauthorized(): Promise<never> {
 }
 
 /**
+ * Authenticated raw fetch helper (attaches Authorization Bearer header, handles 401
+ * when `handleAuthFailure` is true, and returns the raw Response).
+ */
+export async function apiRawFetch(
+  path: string,
+  init: RequestInit = {},
+  options: { handleAuthFailure?: boolean } = {},
+): Promise<Response> {
+  const headers = authHeaders(init.headers);
+  const res = await fetch(path, { ...init, headers });
+  if (res.status === 401 && options.handleAuthFailure !== false) {
+    return handleUnauthorized();
+  }
+  return res;
+}
+
+/**
  * Authenticated JSON / text request helper that preserves Tentacle error semantics
  * (`ApiError.status`, `ApiError.round`) and clears tokens on 401.
  */

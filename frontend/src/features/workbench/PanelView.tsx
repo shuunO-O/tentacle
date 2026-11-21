@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { ChatPanel } from "../chat/ChatPanel";
-import type { PanelId } from "./panels";
+import { pluginIdFromPanelId, type PanelId } from "./panels";
 
 const MemoryGraphPanel = lazy(() =>
   import("../memory-graph/MemoryGraphPanel").then((m) => ({ default: m.MemoryGraphPanel })),
@@ -19,6 +19,9 @@ const ConfigurationPanel = lazy(() =>
 );
 const PluginsPanel = lazy(() =>
   import("../plugins/PluginsPanel").then((m) => ({ default: m.PluginsPanel })),
+);
+const PluginUiPanel = lazy(() =>
+  import("../plugins/PluginUiPanel").then((m) => ({ default: m.PluginUiPanel })),
 );
 const UsagePanel = lazy(() =>
   import("../usage/UsagePanel").then((m) => ({ default: m.UsagePanel })),
@@ -46,8 +49,11 @@ export function PanelView({ panelId }: { panelId: PanelId }) {
     return <ChatPanel />;
   }
 
+  const pluginUiId = pluginIdFromPanelId(panelId);
+
   return (
     <Suspense fallback={<PanelFallback />}>
+      {pluginUiId && <PluginUiPanel pluginId={pluginUiId} />}
       {panelId === "graph" && <MemoryGraphPanel />}
       {panelId === "subagents" && <SubagentsPanel />}
       {panelId === "dedup" && <DedupPanel />}
