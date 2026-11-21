@@ -16,10 +16,11 @@ interface BrowserLiveViewStatus {
   configured: boolean;
   live_view_url: string;
   url_error?: string | null;
+  cdp_port?: number;
   cdp_configured: boolean;
   cdp_reachable: boolean;
   browser_version?: string;
-  mode?: "cdp" | "local";
+  mode?: "neko";
 }
 
 function isSafeHttpUrl(raw: string): boolean {
@@ -85,14 +86,10 @@ export function BrowserViewPanel() {
         <div className="flex min-w-0 items-center gap-2">
           <Globe className="h-4 w-4 shrink-0 text-accent" />
           <span className="truncate text-xs font-semibold text-fg">可视化浏览器</span>
-          {status?.cdp_configured ? (
-            status.cdp_reachable ? (
-              <Badge variant="ok">CDP 在线</Badge>
-            ) : (
-              <Badge variant="warn">{loading ? "检测中…" : "CDP 离线"}</Badge>
-            )
+          {status?.cdp_reachable ? (
+            <Badge variant="ok">CDP 在线</Badge>
           ) : (
-            <Badge variant="default">本地模式</Badge>
+            <Badge variant="warn">{loading ? "检测中…" : "CDP 离线"}</Badge>
           )}
           {status?.browser_version && (
             <span className="hidden truncate font-mono text-[11px] text-fg-dim sm:inline">

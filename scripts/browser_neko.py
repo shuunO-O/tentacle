@@ -530,7 +530,19 @@ def update_tentacle_browser_config(
         browser_cfg = {}
         browser_item["config"] = browser_cfg
 
-    browser_cfg["neko_enabled"] = True
+    for legacy_key in (
+        "neko_enabled",
+        "cdp_discovery_url",
+        "cdp_discovery_timeout",
+        "chrome_path",
+        "headed",
+        "profile",
+        "args",
+        "skills_dir",
+        "session",
+    ):
+        browser_cfg.pop(legacy_key, None)
+
     browser_cfg["neko_dir"] = cfg.install_dir
     browser_cfg["neko_image"] = cfg.image
     browser_cfg["neko_bind"] = cfg.bind
@@ -540,7 +552,6 @@ def update_tentacle_browser_config(
     browser_cfg["neko_nat_ip"] = cfg.nat_ip
     browser_cfg["neko_screen"] = cfg.screen
     browser_cfg["neko_shm_size"] = cfg.shm_size
-    browser_cfg["cdp_discovery_url"] = f"http://127.0.0.1:{cfg.cdp_port}/json/version"
     if cfg.live_view_url:
         browser_cfg["live_view_url"] = cfg.live_view_url
 
@@ -1020,14 +1031,13 @@ def cmd_install(args: argparse.Namespace) -> int:
     print(f"[neko] 反代参考配置已生成: {install_dir / 'reverse-proxy.example.conf'}")
 
     if not args.skip_tentacle_config:
-        cdp_url = f"http://127.0.0.1:{cfg.cdp_port}/json/version"
         if tentacle_cfg_path is not None:
             if update_tentacle_browser_config(tentacle_cfg_path, cfg=cfg):
                 print(f"[neko] 已同步 Tentacle browser 插件配置: {tentacle_cfg_path}")
             else:
-                print(f"[提示] 当前 Python 环境缺少 PyYAML，请手动在 WebUI /plugins 的 browser 插件中设置 cdp_discovery_url = {cdp_url}")
+                print(f"[提示] 当前 Python 环境缺少 PyYAML，请手动在 WebUI /plugins 的 browser 插件中设置 neko_cdp_port = {cfg.cdp_port}")
         else:
-            print(f"[提示] 未自动找到 Tentacle config.yaml，可在 WebUI /plugins 的 browser 插件中填写 cdp_discovery_url = {cdp_url}")
+            print(f"[提示] 未自动找到 Tentacle config.yaml，可在 WebUI /plugins 的 browser 插件中填写 neko_cdp_port = {cfg.cdp_port}")
 
     if not args.no_start and not args.no_control_socket:
         if install_control_socket(allowed_user=args.app_user):

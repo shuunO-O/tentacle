@@ -2006,15 +2006,15 @@ export interface components {
             live_view_url: string;
             /**
              * Cdp Configured
-             * @default false
+             * @default true
              */
             cdp_configured: boolean;
             /**
              * Mode
-             * @default local
-             * @enum {string}
+             * @default neko
+             * @constant
              */
-            mode: "cdp" | "local";
+            mode: "neko";
         } & {
             [key: string]: unknown;
         };

@@ -104,7 +104,23 @@ def test_browser_neko_cli_install_no_start_and_tentacle_config_sync(tmp_path):
     install_dir = tmp_path / "neko"
     tentacle_cfg = tmp_path / "config.yaml"
     tentacle_cfg.write_text(
-        yaml.safe_dump({"webui": {"port": 8420}, "plugins": {"items": {"qqbot": {"enabled": False}}}}),
+        yaml.safe_dump({
+            "webui": {"port": 8420},
+            "plugins": {
+                "items": {
+                    "qqbot": {"enabled": False},
+                    "browser": {
+                        "enabled": True,
+                        "trusted": True,
+                        "config": {
+                            "chrome_path": "/old/chrome",
+                            "headed": True,
+                            "cdp_discovery_url": "http://10.0.0.1:9222/json/version",
+                        },
+                    },
+                }
+            },
+        }),
         encoding="utf-8",
     )
 
@@ -150,8 +166,12 @@ def test_browser_neko_cli_install_no_start_and_tentacle_config_sync(tmp_path):
     assert saved["webui"]["port"] == 8420
     assert saved["plugins"]["items"]["qqbot"]["enabled"] is False
     browser_cfg = saved["plugins"]["items"]["browser"]["config"]
-    assert browser_cfg["cdp_discovery_url"] == "http://127.0.0.1:19222/json/version"
+    assert browser_cfg["neko_cdp_port"] == 19222
     assert browser_cfg["live_view_url"] == "https://browser.example.test"
+    assert "cdp_discovery_url" not in browser_cfg
+    assert "chrome_path" not in browser_cfg
+    assert "headed" not in browser_cfg
+    assert "neko_enabled" not in browser_cfg
 
     # credentials & proxy-config 子命令可正常读取
     assert browser_neko.main(["--dir", str(install_dir), "credentials"]) == 0
@@ -182,8 +202,7 @@ async def test_browser_live_view_summary_and_ext_route_behind_auth(tmp_path, mon
                     "enabled": True,
                     "trusted": True,
                     "config": {
-                        "session": "neko-test",
-                        "cdp_discovery_url": "http://127.0.0.1:19229/json/version",
+                        "neko_cdp_port": 19229,
                         "live_view_url": "https://browser.example.test/neko/",
                     },
                 }
@@ -230,7 +249,7 @@ async def test_browser_live_view_summary_and_ext_route_behind_auth(tmp_path, mon
             assert ui_body["browser_live_view"] == {
                 "live_view_url": "https://browser.example.test/neko/",
                 "cdp_configured": True,
-                "mode": "cdp",
+                "mode": "neko",
             }
 
             live_res = await client.get("/api/plugins/ext/browser/live-view", headers=headers)
@@ -238,8 +257,9 @@ async def test_browser_live_view_summary_and_ext_route_behind_auth(tmp_path, mon
             live_body = live_res.json()
             assert live_body["configured"] is True
             assert live_body["live_view_url"] == "https://browser.example.test/neko/"
+            assert live_body["cdp_port"] == 19229
             assert live_body["cdp_configured"] is True
-            assert live_body["mode"] == "cdp"
+            assert live_body["mode"] == "neko"
             assert "webSocketDebuggerUrl" not in live_body
 
             # Neko 控制路由同样必须受 DeviceAccessGate + auth_dep 保护，并拒绝非法 action

@@ -432,8 +432,8 @@ class PluginUiItemDto(FlexibleModel):
 
 class BrowserLiveViewSummaryDto(FlexibleModel):
     live_view_url: str
-    cdp_configured: bool = False
-    mode: Literal["cdp", "local"] = "local"
+    cdp_configured: bool = True
+    mode: Literal["neko"] = "neko"
 
 
 class PluginUiListResponse(FlexibleModel):

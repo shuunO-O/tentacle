@@ -20,14 +20,14 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 
 ### `browser` — 浏览器自动化（[manifest.yaml](../plugins/bundled/browser/manifest.yaml)）
 
-封装 `agent-browser` CLI 控制本地 Chrome 或远程 CDP Chrome，适用于需要登录态、页面点击/填表或视觉截图的场景；暴露工具名为 **`p_browser__browser`**。
+封装 `agent-browser` CLI 控制本机 Docker Neko（Chromium + WebRTC + 本机回环 CDP），适用于需要登录态、页面点击/填表、视觉截图或人工随时接管的场景；暴露工具名为 **`p_browser__browser`**。
 
-- **运行模式**：
-  - **本地模式**（默认，`cdp_discovery_url` 为空）：使用服务器上的 Chrome 与独立持久化 `profile`，可配置 `headed`（有头/无头）、`chrome_path`、`args`。
-  - **本机 Docker Neko 模式（推荐可视化接管）**：使用 `tentacle browser install` 一键部署带 WebRTC 画面流与本机 CDP（`http://127.0.0.1:9222/json/version`）的 Chromium 容器，并在配置中填写 `live_view_url` 以在 WebUI 侧边栏直达或内嵌打开；详见 [Docker Neko 可视化浏览器指南](BROWSER_NEKO.md)。
-  - **远程 CDP 模式**：填写 Windows / 本机转发地址（如 `http://WINDOWS_TAILSCALE_HOST:PORT/json/version`），通过 tailnet 控制远程桌面已登录 Chrome；完整搭建步骤见 [远程 Chrome 说明](REMOTE_BROWSER.md)。
-- **常用配置项**：
-  - `session`：浏览器会话标识（默认 `tentacle`）。
+- **一键部署与 WebUI 托管**：
+  - 首次在 Linux 服务器执行 `sudo tentacle browser install --install-docker` 即可完成 Docker Neko 容器与受控启停通道初始化，详见 [Docker Neko 可视化浏览器指南](BROWSER_NEKO.md)。
+  - 之后可直接在 WebUI `/plugins` 展开 `browser` 卡片修改全部 Neko 参数（`live_view_url`、`neko_bind`、`neko_http_port`、`neko_cdp_port`、`neko_mux_port`、`neko_nat_ip`、`neko_screen`、`neko_shm_size` 等），保存后直接点 **同步并启动 / 重启 / 停止** 管理容器。
+  - 填写 `live_view_url` 后，WebUI 左侧栏与命令面板会出现「可视化浏览器」直达/内嵌入口；留空则隐藏。
+- **`agent-browser` 行为与安全配置项**：
+  - `executable`：`agent-browser` 二进制路径（留空自动探测）。
   - `allowed_domains`：允许访问的域名白名单（在 `/plugins` 中**每行填写一个域名**，留空表示不限制）。
   - `allow_eval`：是否允许页面内 `eval` 脚本执行（默认关闭以降低脚本风险）。
   - `max_output` / `timeout`：单次命令输出上限与超时秒数。

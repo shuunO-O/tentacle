@@ -1,4 +1,4 @@
-"""Tentacle 内置浏览器插件（封装 agent-browser CLI）。"""
+"""Tentacle 内置浏览器插件（纯 Docker Neko + agent-browser CLI）。"""
 
 from __future__ import annotations
 
@@ -20,9 +20,12 @@ from urllib.parse import urlsplit, urlunsplit
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SKILLS_DIR = Path.home() / ".local" / "share" / "agent-browser" / "skills"
+_DEFAULT_SESSION = "tentacle"
+_DEFAULT_NEKO_CDP_PORT = 9222
+_CDP_DISCOVERY_TIMEOUT = 8.0
 _MAX_OUTPUT = 50000
 _BLOCKED_SUBCOMMANDS = {"eval"}
-_REMOTE_CONNECTION_FLAGS = {
+_CONNECTION_OVERRIDE_FLAGS = {
     "--cdp", "--auto-connect", "--profile", "--headed", "--executable-path",
     "--args", "--provider", "-p", "--session", "--config", "--namespace",
     "--pin-tab", "--no-pin-tab", "--restore", "--session-name",
@@ -47,15 +50,30 @@ def normalize_live_view_url(raw_url: str) -> str:
     return candidate
 
 
+def _neko_cdp_port(cfg: dict) -> int:
+    raw = cfg.get("neko_cdp_port", _DEFAULT_NEKO_CDP_PORT)
+    try:
+        port = int(raw if raw not in (None, "") else _DEFAULT_NEKO_CDP_PORT)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"neko_cdp_port 必须为 1-65535 的整数: {raw!r}") from exc
+    if not (1 <= port <= 65535):
+        raise ValueError(f"neko_cdp_port 超出范围: {port}")
+    return port
+
+
+def _neko_cdp_discovery_url(cfg: dict) -> str:
+    return f"http://127.0.0.1:{_neko_cdp_port(cfg)}/json/version"
+
+
 def _probe_cdp_info(discovery_url: str, timeout: float = 2.0) -> tuple[bool, str]:
-    """轻量探测 CDP /json/version 可达性与浏览器版本，绝不返回 webSocketDebuggerUrl。"""
+    """轻量探测本机 Neko CDP /json/version 可达性与浏览器版本，绝不返回 webSocketDebuggerUrl。"""
     if not discovery_url:
         return False, ""
     try:
         endpoint = urlsplit(discovery_url)
         if (
-            endpoint.scheme not in {"http", "https"}
-            or not endpoint.hostname
+            endpoint.scheme != "http"
+            or endpoint.hostname != "127.0.0.1"
             or endpoint.username is not None
             or endpoint.password is not None
         ):
@@ -71,20 +89,6 @@ def _probe_cdp_info(discovery_url: str, timeout: float = 2.0) -> tuple[bool, str
         return True, str(data.get("Browser") or "").strip()
     except Exception:
         return False, ""
-
-
-def _effective_cdp_discovery_url(cfg: dict) -> str:
-    explicit = (cfg.get("cdp_discovery_url") or "").strip()
-    if explicit:
-        return explicit
-    if bool(cfg.get("neko_enabled", False)):
-        try:
-            port = int(cfg.get("neko_cdp_port", 9222) or 9222)
-        except (TypeError, ValueError):
-            port = 9222
-        if 1 <= port <= 65535:
-            return f"http://127.0.0.1:{port}/json/version"
-    return ""
 
 
 def _load_browser_neko_module():
@@ -112,15 +116,15 @@ def _latest_browser_config(fallback_cfg: dict) -> dict:
 
 
 def _discover_cdp_url(discovery_url: str, timeout: float) -> str:
-    """每次读取浏览器端点，按发现地址改写 host/port，保留 WebSocket 路径。"""
+    """每次读取本机 Neko Chromium CDP 端点，按 127.0.0.1:<port> 改写 authority，保留 WebSocket 路径。"""
     endpoint = urlsplit(discovery_url)
     if (
-        endpoint.scheme not in {"http", "https"}
-        or not endpoint.hostname
+        endpoint.scheme != "http"
+        or endpoint.hostname != "127.0.0.1"
         or endpoint.username is not None
         or endpoint.password is not None
     ):
-        raise ValueError("cdp_discovery_url 必须是无用户名/密码的 HTTP(S) 发现地址")
+        raise ValueError("Neko CDP 发现地址必须位于本机 127.0.0.1")
     endpoint.port
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(discovery_url, timeout=timeout) as response:
@@ -137,10 +141,8 @@ def _discover_cdp_url(discovery_url: str, timeout: float) -> str:
     return urlunsplit((ws.scheme, endpoint.netloc, ws.path, ws.query, ws.fragment))
 
 
-def _run_cli(cmd: list[str], env: dict, timeout: float, remote: bool) -> subprocess.CompletedProcess[str]:
-    """远程模式隔离 CLI 的用户/项目配置，避免残留 provider/profile 影响连接。"""
-    if not remote:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
+def _run_cli(cmd: list[str], env: dict, timeout: float) -> subprocess.CompletedProcess[str]:
+    """隔离 agent-browser 的用户/项目配置，避免残留 provider/profile 影响 Neko CDP 连接。"""
     with tempfile.TemporaryDirectory(prefix="tentacle-browser-") as directory:
         config_path = Path(directory) / "agent-browser.json"
         config_path.write_text("{}", encoding="utf-8")
@@ -168,10 +170,7 @@ def _find_executable(config: dict) -> str:
     return "agent-browser"
 
 
-def _skills_dir(config: dict) -> str:
-    explicit = (config.get("skills_dir") or "").strip()
-    if explicit:
-        return explicit
+def _skills_dir() -> str:
     env = os.environ.get("AGENT_BROWSER_SKILLS_DIR", "").strip()
     if env:
         return env
@@ -203,7 +202,7 @@ def _truncate(text: str, limit: int = _MAX_OUTPUT) -> str:
 
 
 def run_browser_command(args: dict, cfg: dict | None = None) -> str | dict:
-    """同步执行一条 agent-browser 命令并返回文本输出或截图内部标记。"""
+    """同步执行一条 agent-browser 命令（直连本机 Docker Neko CDP）并返回文本输出或截图内部标记。"""
     command = (args.get("command") or "").strip()
     if not command:
         return "错误：command 不能为空。例如 'open https://example.com'、'snapshot'。"
@@ -218,14 +217,12 @@ def run_browser_command(args: dict, cfg: dict | None = None) -> str | dict:
     if not words:
         return "错误：command 不能为空。"
 
-    discovery_url = _effective_cdp_discovery_url(cfg)
-    remote = bool(discovery_url)
-    if remote and (
+    if (
         words[0].startswith("-")
         or words[0].lower() in {"connect", "install", "upgrade"}
-        or any(word.split("=", 1)[0] in _REMOTE_CONNECTION_FLAGS for word in words)
+        or any(word.split("=", 1)[0] in _CONNECTION_OVERRIDE_FLAGS for word in words)
     ):
-        return "错误：远程模式的连接与会话由 browser 插件配置管理，不能通过命令覆盖或安装本地浏览器。"
+        return "错误：浏览器连接与会话由 Docker Neko 托管配置管理，不能通过命令覆盖连接参数或安装本地浏览器。"
 
     allow_eval = bool(cfg.get("allow_eval", False))
     reason = _blocked_reason(command, allow_eval)
@@ -234,47 +231,38 @@ def run_browser_command(args: dict, cfg: dict | None = None) -> str | dict:
         return reason
 
     executable = _find_executable(cfg)
-    session = (cfg.get("session") or "tentacle").strip()
     max_output = cfg.get("max_output", 15000)
     timeout = float(cfg.get("timeout", 60) or 60)
     allowed_domains = cfg.get("allowed_domains", []) or []
-    extra_args = cfg.get("args", []) or []
-    chrome_path = os.path.expanduser((cfg.get("chrome_path") or "").strip())
-    headed = bool(cfg.get("headed", False))
-    profile = os.path.expanduser((cfg.get("profile") or "").strip())
 
     started = time.monotonic()
-    cdp_url = ""
-    if remote:
-        try:
-            discovery_timeout = float(cfg.get("cdp_discovery_timeout", 8) or 8)
-            if discovery_timeout <= 0 or timeout <= 0:
-                raise ValueError("浏览器超时必须大于零")
-            cdp_url = _discover_cdp_url(discovery_url, min(timeout, discovery_timeout))
-        except Exception as exc:
-            logger.warning(f"[browser] 远程浏览器发现失败: {exc}")
-            return "错误：远程浏览器不可用，请确认 PC、Chrome、Tailscale 和来源白名单；未启动本地浏览器。"
+    try:
+        if timeout <= 0:
+            raise ValueError("浏览器超时必须大于零")
+        cdp_port = _neko_cdp_port(cfg)
+        discovery_url = f"http://127.0.0.1:{cdp_port}/json/version"
+        cdp_url = _discover_cdp_url(discovery_url, min(timeout, _CDP_DISCOVERY_TIMEOUT))
+    except Exception as exc:
+        logger.warning(f"[browser] Neko CDP 发现失败: {exc}")
+        port_hint = cfg.get("neko_cdp_port", _DEFAULT_NEKO_CDP_PORT)
+        return (
+            f"错误：Docker Neko 浏览器 CDP（127.0.0.1:{port_hint}）不可用，"
+            "请在 WebUI /plugins 的 browser 插件页点击「同步并启动」或执行 tentacle browser start。"
+        )
 
-    cmd = [executable, "--session", session, "--max-output", str(max_output)]
-    if remote:
-        cmd += ["--cdp", cdp_url, "--pin-tab"]
-    else:
-        if headed:
-            cmd.append("--headed")
-        if profile:
-            cmd += ["--profile", profile]
-        for a in extra_args:
-            cmd += ["--args", str(a)]
+    cmd = [
+        executable,
+        "--session", _DEFAULT_SESSION,
+        "--max-output", str(max_output),
+        "--cdp", cdp_url,
+        "--pin-tab",
+    ]
     if allowed_domains:
         cmd += ["--allowed-domains", ",".join(str(d) for d in allowed_domains)]
     cmd += words
 
-    env = os.environ.copy()
-    if remote:
-        env = {key: value for key, value in env.items() if not key.startswith("AGENT_BROWSER_")}
-    elif chrome_path:
-        env["AGENT_BROWSER_EXECUTABLE_PATH"] = chrome_path
-    skills_dir = _skills_dir(cfg)
+    env = {key: value for key, value in os.environ.items() if not key.startswith("AGENT_BROWSER_")}
+    skills_dir = _skills_dir()
     if os.path.isdir(skills_dir):
         env["AGENT_BROWSER_SKILLS_DIR"] = skills_dir
 
@@ -284,21 +272,17 @@ def run_browser_command(args: dict, cfg: dict | None = None) -> str | dict:
         remaining = timeout - (time.monotonic() - started)
         if remaining <= 0:
             return "[状态: 超时] 浏览器发现耗尽命令时限，未执行操作。"
-        proc = _run_cli(cmd, env, remaining, remote)
+        proc = _run_cli(cmd, env, remaining)
     except FileNotFoundError:
-        install_hint = (
-            "  npm i -g agent-browser（远程模式无需安装 Chrome）\n"
-            if remote else "  npm i -g agent-browser && agent-browser install --with-deps\n"
-        )
         return (
             "错误：未找到 agent-browser 命令。请先安装：\n"
-            + install_hint
-            + "或在 WebUI /plugins 中为 browser 插件指定 executable 二进制路径。"
+            "  npm i -g agent-browser（无需安装本地 Chrome，直接使用 Docker Neko）\n"
+            "或在 WebUI /plugins 中为 browser 插件指定 executable 二进制路径。"
         )
     except subprocess.TimeoutExpired:
         return (
             f"[状态: 超时] 命令未在 {int(timeout)}s 内完成，已终止。"
-            "浏览器 daemon 仍在运行，可重试该命令或先 snapshot 查看当前状态。"
+            "Docker Neko 浏览器仍在运行，可重试该命令或先 snapshot 查看当前状态。"
         )
 
     output = proc.stdout or ""
@@ -350,7 +334,7 @@ async def execute_browser(args: dict, cfg: dict | None = None, upload_image_fn=N
 
 
 def setup(ctx) -> None:
-    """注册 browser 插件工具（`p_browser__browser`）与可选的可视化入口只读状态路由。"""
+    """注册 browser 插件工具（`p_browser__browser`）与 Docker Neko 状态/控制路由。"""
     plugin_cfg = ctx.config
 
     if ctx.has_permission("web:routes"):
@@ -370,22 +354,25 @@ def setup(ctx) -> None:
                 except ValueError as exc:
                     url_error = str(exc)
 
-            cdp_url = _effective_cdp_discovery_url(cfg_now)
-            cdp_configured = bool(cdp_url)
             cdp_reachable = False
             browser_version = ""
-            if cdp_configured:
+            cdp_port = _DEFAULT_NEKO_CDP_PORT
+            try:
+                cdp_port = _neko_cdp_port(cfg_now)
+                cdp_url = f"http://127.0.0.1:{cdp_port}/json/version"
                 cdp_reachable, browser_version = await asyncio.to_thread(_probe_cdp_info, cdp_url, 2.0)
+            except ValueError:
+                pass
 
             return {
                 "configured": bool(live_url),
                 "live_view_url": live_url,
                 "url_error": url_error,
-                "cdp_configured": cdp_configured,
+                "cdp_port": cdp_port,
+                "cdp_configured": True,
                 "cdp_reachable": cdp_reachable,
                 "browser_version": browser_version,
-                "neko_enabled": bool(cfg_now.get("neko_enabled", False)),
-                "mode": "cdp" if cdp_configured else "local",
+                "mode": "neko",
             }
 
         @router.get("/neko/status")
@@ -416,13 +403,13 @@ def setup(ctx) -> None:
         ctx.register_router(router)
 
     async def browser_tool(args: dict) -> str | list[dict]:
-        return await execute_browser(args, plugin_cfg, upload_image_fn=ctx.files.upload_image)
+        return await execute_browser(args, _latest_browser_config(plugin_cfg), upload_image_fn=ctx.files.upload_image)
 
     ctx.register_tool(
         name="browser",
         description=(
-            "执行 agent-browser 子命令操作真实浏览器（访问网页、表单、点击等）；调用 p_browser__browser(\"skills get core\") 获取完整手册。"
-            "eval（页面 JS）默认禁用；远程模式自动发现 CDP 地址，勿自行 connect 或覆盖连接参数；标签页关闭时用 tab new 新建。"
+            "执行 agent-browser 子命令操作本机 Docker Neko 浏览器（访问网页、表单、点击等）；调用 p_browser__browser(\"skills get core\") 获取完整手册。"
+            "eval（页面 JS）默认禁用；自动连接 Neko 本机 CDP，勿自行 connect 或覆盖连接参数；标签页关闭时用 tab new 新建。"
         ),
         parameters={
             "type": "object",

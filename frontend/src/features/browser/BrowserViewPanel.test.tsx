@@ -29,9 +29,9 @@ describe("BrowserViewPanel", () => {
     mockedApiFetch.mockResolvedValue({
       configured: false,
       live_view_url: "",
-      cdp_configured: false,
+      cdp_configured: true,
       cdp_reachable: false,
-      mode: "local",
+      mode: "neko",
     });
 
     render(<BrowserViewPanel />);
@@ -49,7 +49,7 @@ describe("BrowserViewPanel", () => {
       browserLiveView: {
         live_view_url: "https://browser.example.test/neko/",
         cdp_configured: true,
-        mode: "cdp",
+        mode: "neko",
       },
     });
     mockedApiFetch.mockResolvedValue({
@@ -58,7 +58,7 @@ describe("BrowserViewPanel", () => {
       cdp_configured: true,
       cdp_reachable: true,
       browser_version: "Chrome/136.0",
-      mode: "cdp",
+      mode: "neko",
     });
 
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);

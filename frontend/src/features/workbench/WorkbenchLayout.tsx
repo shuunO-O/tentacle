@@ -188,13 +188,19 @@ export function WorkbenchLayout() {
   const resolvedTheme = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
+  const browserPanel = browserLiveView?.live_view_url
+    ? PANELS.filter((panel) => panel.id === "browser")
+    : [];
   const visibleBuiltinPanels = PANELS.filter(
     (panel) => panel.id !== "browser" || Boolean(browserLiveView?.live_view_url),
   );
   const allPluginPanels = pluginUis.map(buildPluginPanelDef);
-  const sidebarPluginPanels = pluginUis
-    .filter((item) => item.placement === "sidebar")
-    .map(buildPluginPanelDef);
+  const sidebarPluginPanels = [
+    ...browserPanel,
+    ...pluginUis
+      .filter((item) => item.placement === "sidebar")
+      .map(buildPluginPanelDef),
+  ];
   const allSplitCandidates = [...visibleBuiltinPanels, ...allPluginPanels];
   const navGroups =
     sidebarPluginPanels.length > 0

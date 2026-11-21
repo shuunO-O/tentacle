@@ -230,19 +230,20 @@ plugins:
       enabled: true
       trusted: true
       config:
+        live_view_url: ""
+        neko_dir: "/var/lib/tentacle-browser"
+        neko_image: "ghcr.io/m1k1o/neko/chromium:latest"
+        neko_bind: "127.0.0.1"
+        neko_http_port: 8080
+        neko_cdp_port: 9222
+        neko_mux_port: 52000
+        neko_nat_ip: ""
+        neko_screen: "1280x720@24"
+        neko_shm_size: ""
         executable: ""
-        cdp_discovery_url: ""
-        cdp_discovery_timeout: 8
-        chrome_path: "~/.local/share/agent-browser/chrome-linux64/chrome"
-        skills_dir: ""
-        session: "tentacle"
-        headed: true
-        profile: "~/.local/share/agent-browser/tentacle-profile"
-        max_output: 15000
         allow_eval: false
         allowed_domains: []
-        args:
-          - "--no-sandbox"
+        max_output: 15000
         timeout: 60
     harmony:
       enabled: false

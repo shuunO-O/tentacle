@@ -106,12 +106,11 @@ def _validate_plugin_config_input(manifest, incoming_config: dict[str, Any] | No
 
 
 def _merge_config_with_schema(manifest, cfg_dict: dict[str, Any]) -> dict[str, Any]:
+    if not manifest.config_schema:
+        return deepcopy(cfg_dict)
     merged: dict[str, Any] = {}
     for key, spec in manifest.config_schema.items():
         merged[key] = deepcopy(cfg_dict[key]) if key in cfg_dict else deepcopy(spec.default)
-    for key, value in cfg_dict.items():
-        if key not in merged:
-            merged[key] = deepcopy(value)
     return merged
 
 
@@ -354,9 +353,18 @@ def plugins_router(plugin_manager, auth_dep, *, config_service=None, store: Conf
         browser_state = states.get("browser")
         if browser_state is None or getattr(browser_state, "status", None) != "active":
             return None
-        cfg = getattr(browser_state, "config", None)
-        if not isinstance(cfg, dict):
-            return None
+        cfg = dict(getattr(browser_state, "config", None) or {})
+        try:
+            active_store = _store()
+            if active_store.path.is_file():
+                from config.files import parse_config
+
+                raw = parse_config(active_store.path.read_text(encoding="utf-8"))
+                saved_browser = ((raw.get("plugins") or {}).get("items") or {}).get("browser")
+                if isinstance(saved_browser, dict) and isinstance(saved_browser.get("config"), dict):
+                    cfg.update(saved_browser["config"])
+        except Exception:
+            pass
         raw_url = str(cfg.get("live_view_url") or "").strip()
         if not raw_url or any(ch in raw_url for ch in ("\r", "\n", "\x00")):
             return None
@@ -368,11 +376,10 @@ def plugins_router(plugin_manager, auth_dep, *, config_service=None, store: Conf
             or parsed.password is not None
         ):
             return None
-        cdp_configured = bool(str(cfg.get("cdp_discovery_url") or "").strip()) or bool(cfg.get("neko_enabled", False))
         return BrowserLiveViewSummaryDto(
             live_view_url=raw_url,
-            cdp_configured=cdp_configured,
-            mode="cdp" if cdp_configured else "local",
+            cdp_configured=True,
+            mode="neko",
         )
 
     @router.get("/ui", response_model=PluginUiListResponse)

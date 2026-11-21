@@ -49,7 +49,7 @@ export interface PluginUiEntry {
 export interface BrowserLiveViewSummary {
   live_view_url: string;
   cdp_configured: boolean;
-  mode: "cdp" | "local";
+  mode: "neko";
 }
 
 const PLUGIN_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -104,7 +104,7 @@ export const PANELS: PanelDefinition[] = [
   },
   {
     id: "browser",
-    group: "chat",
+    group: "plugin_ui",
     label: "可视化浏览器",
     route: "/browser",
     description: "内嵌或新标签打开 Neko 等可视化浏览器画面进行人工接管",

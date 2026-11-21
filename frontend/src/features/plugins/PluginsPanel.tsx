@@ -21,7 +21,7 @@ import { Input, Textarea } from "../../components/ui/Input";
 import { Switch } from "../../components/ui/Switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/Tabs";
 import { toast } from "../../components/ui/Toast";
-import { useLayoutStore } from "../workbench/layoutStore";
+import { refreshPluginUis, useLayoutStore } from "../workbench/layoutStore";
 import { pluginPanelId } from "../workbench/panels";
 import { BrowserNekoControl } from "../browser/BrowserNekoControl";
 
@@ -220,7 +220,12 @@ export function PluginsPanel() {
       const nextCfg: Record<string, Record<string, unknown>> = {};
       const nextDisabled: Record<string, string[]> = {};
       for (const item of data.plugins || []) {
-        nextCfg[item.id] = { ...(item.saved_config ?? item.config ?? {}) };
+        const rawCfg = item.saved_config ?? item.config ?? {};
+        const schemaKeys = Object.keys(item.manifest?.config_schema ?? {});
+        nextCfg[item.id] =
+          schemaKeys.length > 0
+            ? Object.fromEntries(schemaKeys.filter((k) => k in rawCfg).map((k) => [k, rawCfg[k]]))
+            : { ...rawCfg };
         nextDisabled[item.id] = [...(item.saved_disabled_tools ?? item.disabled_tools ?? [])];
       }
       setLocalDrafts(nextCfg);
@@ -255,6 +260,9 @@ export function PluginsPanel() {
         }),
       });
       setSnapshot(updated);
+      if (plugin.id === "browser") {
+        void refreshPluginUis();
+      }
       if (!opts?.silent) {
         toast(enabled ? `已保存并批准启用 ${plugin.id}（需重启生效）` : `已保存 ${plugin.id}（需重启生效）`, "ok");
       }

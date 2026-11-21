@@ -4451,16 +4451,13 @@
           "cdp_configured": {
             "type": "boolean",
             "title": "Cdp Configured",
-            "default": false
+            "default": true
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "cdp",
-              "local"
-            ],
+            "const": "neko",
             "title": "Mode",
-            "default": "local"
+            "default": "neko"
           }
         },
         "additionalProperties": true,

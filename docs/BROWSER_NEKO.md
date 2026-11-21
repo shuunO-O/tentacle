@@ -34,7 +34,7 @@ sudo tentacle browser install \
 1. 创建运行目录（默认 `/var/lib/tentacle-browser`）与持久化 `profile/` 目录；
 2. 生成随机高强度 Neko 登录密码并写入 `0600` 权限的 `.env`（不会写入 Tentacle `config.yaml`）；
 3. 生成开启本机 CDP 且关闭访客模式的 `chromium.conf` 与 `docker-compose.yaml`；
-4. 自动将 `neko_*` 参数、`cdp_discovery_url: http://127.0.0.1:9222/json/version`（以及可选 `live_view_url`）同步到 Tentacle 的 `config.yaml`；
+4. 自动将 `neko_*` 参数（以及可选 `live_view_url`）同步到 Tentacle 的 `config.yaml`（并自动清理旧版残留字段）；
 5. 在 Linux systemd 主机上自动安装按需拉起的受控 Unix Socket（`tentacle-browser-neko.socket`，仅允许 `tentacle` 应用账号通过 `SO_PEERCRED` 调用白名单启停动作，无需把应用账号加入 `docker` 组，空闲零内存开销）；
 6. 拉取镜像、启动容器并探活本机 CDP 端点。
 

@@ -1,7 +1,7 @@
 id: browser
 name: 浏览器自动化
 version: "1.0.0"
-description: 封装 agent-browser CLI 控制本地或远程 CDP Chrome，支持网页交互、表单操作与截图视觉输入。
+description: 封装 agent-browser CLI 控制本机 Docker Neko（Chromium + WebRTC + 本机 CDP），支持网页交互、表单操作、截图视觉输入与可视化接管。
 author: tentacle
 entrypoint: plugin.py:setup
 permissions:
@@ -10,26 +10,11 @@ permissions:
   - network:outbound
   - web:routes
 config_schema:
-  executable:
-    type: string
-    label: agent-browser 路径
-    default: ""
-    help: 留空自动探测（PATH > ~/.local/bin > ~/.npm-global/bin）。
-  cdp_discovery_url:
-    type: string
-    label: 远程 CDP 发现地址
-    default: ""
-    help: 远程或本机 Docker Neko 模式填写 http(s)://HOST:PORT/json/version；留空使用本地 Chrome。
   live_view_url:
     type: string
-    label: 可视化浏览器地址（如 Neko）
+    label: 可视化浏览器地址（Neko）
     default: ""
-    help: 选填：填写 Neko 等可视化浏览器的 HTTPS/HTTP 地址后，WebUI 侧边栏会显示直达与内嵌入口；留空则隐藏。
-  neko_enabled:
-    type: boolean
-    label: 启用本机 Docker Neko 托管
-    default: false
-    help: 开启后可通过插件页直接同步配置并启停本机 Docker Neko（Chromium + WebRTC + 本机 CDP）；若 cdp_discovery_url 留空将自动连接 127.0.0.1:<neko_cdp_port>。
+    help: 选填：填写 Neko 的 HTTPS/HTTP 访问地址后，WebUI 侧边栏会显示直达与内嵌入口；留空则隐藏。
   neko_dir:
     type: string
     label: Neko 数据目录
@@ -57,7 +42,7 @@ config_schema:
     default: 9222
     minimum: 1
     maximum: 65535
-    help: 始终仅绑定宿主机 127.0.0.1，绝不对外暴露。
+    help: 始终仅绑定宿主机 127.0.0.1，供 agent-browser 自动发现并连接，绝不对外暴露。
   neko_mux_port:
     type: integer
     label: Neko WebRTC MUX 端口
@@ -80,43 +65,11 @@ config_schema:
     label: Neko 共享内存（shm_size）
     default: ""
     help: 留空按宿主机内存自动选择（2G 机器 512m，其余 1g），也可手动填写如 512m / 1g / 2g。
-  cdp_discovery_timeout:
-    type: number
-    label: CDP 发现超时（秒）
-    default: 8
-    minimum: 0.5
-    maximum: 120
-  chrome_path:
+  executable:
     type: string
-    label: Chrome 可执行路径
-    default: "~/.local/share/agent-browser/chrome-linux64/chrome"
-    help: 仅本地模式生效；留空自动探测。
-  skills_dir:
-    type: string
-    label: agent-browser skills 目录
+    label: agent-browser 路径
     default: ""
-    help: 留空优先读取 AGENT_BROWSER_SKILLS_DIR 或默认目录。
-  session:
-    type: string
-    label: 浏览器会话名
-    default: "tentacle"
-    required: true
-  headed:
-    type: boolean
-    label: 有头模式
-    default: true
-    help: 仅本地模式生效：开启后显示可见浏览器窗口。
-  profile:
-    type: string
-    label: 持久化 Profile 目录
-    default: "~/.local/share/agent-browser/tentacle-profile"
-    help: 仅本地模式生效：保留登录态；留空则不持久化。
-  max_output:
-    type: integer
-    label: 最大输出字符数
-    default: 15000
-    minimum: 500
-    maximum: 100000
+    help: 留空自动探测（PATH > ~/.local/bin > ~/.npm-global/bin）。
   allow_eval:
     type: boolean
     label: 允许页面 JS（eval）
@@ -127,12 +80,12 @@ config_schema:
     label: 允许访问域名列表
     default: []
     help: 留空表示不限制，每行填写一个域名。
-  args:
-    type: string_list
-    label: Chrome 启动参数
-    default:
-      - "--no-sandbox"
-    help: 仅本地模式生效，每行填写一个启动参数。
+  max_output:
+    type: integer
+    label: 最大输出字符数
+    default: 15000
+    minimum: 500
+    maximum: 100000
   timeout:
     type: number
     label: 单条命令超时（秒）

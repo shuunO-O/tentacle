@@ -5,7 +5,7 @@ import random
 import time
 
 from fastapi import Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from plugins.manifest import bundled_plugins_dir, parse_manifest
 from plugins.permissions import PERMISSION_CATALOG, describe_permissions
@@ -60,7 +60,15 @@ def attach_plugins(app, authenticated):
     browser_item, browser_envs = _make_bundled_item(
         "browser",
         tools=[{"raw_name": "browser", "name": "p_browser__browser", "enabled": True}],
+        routes=[
+            "/api/plugins/ext/browser/live-view",
+            "/api/plugins/ext/browser/neko/status",
+            "/api/plugins/ext/browser/neko/action",
+        ],
     )
+    preview_neko_url = "http://127.0.0.1:8421/__preview__/neko-mock"
+    browser_item["config"]["live_view_url"] = preview_neko_url
+    browser_item["saved_config"]["live_view_url"] = preview_neko_url
     harmony_item, harmony_envs = _make_bundled_item("harmony", tools=[])
     harmony_item.update({
         "enabled": False,
@@ -620,11 +628,10 @@ def attach_plugins(app, authenticated):
                 bcfg = p.get("config") or {}
                 live_url = str(bcfg.get("live_view_url") or "").strip()
                 if live_url.startswith(("http://", "https://")):
-                    cdp_cfg = bool(str(bcfg.get("cdp_discovery_url") or "").strip())
                     browser_live_view = {
                         "live_view_url": live_url,
-                        "cdp_configured": cdp_cfg,
-                        "mode": "cdp" if cdp_cfg else "local",
+                        "cdp_configured": True,
+                        "mode": "neko",
                     }
         return {"items": items, "browser_live_view": browser_live_view}
 
@@ -695,23 +702,75 @@ def attach_plugins(app, authenticated):
                 app.state.sockets.discard(socket)
         return {"ok": True}
 
-    neko_preview_state = {"running": False}
+    neko_preview_state = {"running": True}
+
+    @app.get("/__preview__/neko-mock", response_class=HTMLResponse)
+    async def browser_neko_mock_page():
+        return HTMLResponse(
+            """<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Neko 预览画面</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  .bar { height: 42px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 12px; }
+  .pill { background: rgba(16,185,129,.18); color: #6ee7b7; border: 1px solid rgba(16,185,129,.35); padding: 2px 8px; border-radius: 999px; font-family: ui-monospace, monospace; }
+  .stage { flex: 1; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at top, #1e293b, #0f172a 70%); }
+  .win { width: min(860px, 100%); border-radius: 14px; overflow: hidden; border: 1px solid #334155; background: #0b1220; box-shadow: 0 20px 50px rgba(0,0,0,.45); }
+  .chrome { height: 38px; background: #1e293b; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #475569; }
+  .addr { flex: 1; margin-left: 8px; height: 24px; border-radius: 6px; background: #0f172a; border: 1px solid #334155; color: #94a3b8; display: flex; align-items: center; padding: 0 10px; font-family: ui-monospace, monospace; font-size: 11px; }
+  .page { padding: 36px 28px; text-align: center; }
+  h1 { font-size: 20px; margin-bottom: 10px; color: #f8fafc; }
+  p { font-size: 13px; line-height: 1.7; color: #94a3b8; max-width: 560px; margin: 0 auto 18px; }
+  .meta { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: center; font-family: ui-monospace, monospace; font-size: 11px; color: #cbd5e1; }
+  .meta span { background: #1e293b; border: 1px solid #334155; padding: 4px 10px; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <span><strong>m1k1o/neko</strong> · WebRTC 可视化浏览器（开发预览占位画面）</span>
+    <span class="pill">WebRTC · 1280×720@24</span>
+  </div>
+  <div class="stage">
+    <div class="win">
+      <div class="chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <div class="addr">https://example.com — Chromium (Docker Neko)</div>
+      </div>
+      <div class="page">
+        <h1>Docker Neko 可视化内嵌预览</h1>
+        <p>实际部署后，这里将直接呈现服务器 Docker Neko 容器的 Chromium WebRTC 实时桌面流；Agent 通过宿主机 <code>127.0.0.1:9222</code> CDP 驱动同一浏览器实例，你可随时在此点击接管登录或人机验证。</p>
+        <div class="meta">
+          <span>CDP: 127.0.0.1:9222</span>
+          <span>MUX: 52000/udp+tcp</span>
+          <span>Profile: 持久化</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>"""
+        )
 
     @app.get("/api/plugins/ext/browser/live-view", dependencies=[Depends(auth)])
     async def browser_live_view_preview():
         bp = next((p for p in state["plugins"] if p["id"] == "browser"), None)
         bcfg = (bp or {}).get("config") or {}
         live_url = str(bcfg.get("live_view_url") or "").strip()
-        cdp_cfg = bool(str(bcfg.get("cdp_discovery_url") or "").strip()) or bool(bcfg.get("neko_enabled", False))
+        cdp_port = int(bcfg.get("neko_cdp_port") or 9222)
         return {
             "configured": bool(live_url),
             "live_view_url": live_url,
             "url_error": None,
-            "cdp_configured": cdp_cfg,
-            "cdp_reachable": cdp_cfg and neko_preview_state["running"],
-            "browser_version": "Chromium (preview)" if (cdp_cfg and neko_preview_state["running"]) else "",
-            "neko_enabled": bool(bcfg.get("neko_enabled", False)),
-            "mode": "cdp" if cdp_cfg else "local",
+            "cdp_port": cdp_port,
+            "cdp_configured": True,
+            "cdp_reachable": neko_preview_state["running"],
+            "browser_version": "Chromium (preview)" if neko_preview_state["running"] else "",
+            "mode": "neko",
         }
 
     @app.get("/api/plugins/ext/browser/neko/status", dependencies=[Depends(auth)])

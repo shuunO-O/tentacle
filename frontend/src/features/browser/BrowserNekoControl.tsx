@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Play, RefreshCw, RotateCw, Square, Terminal } from "lucide-react";
+import { Globe, Play, RefreshCw, RotateCw, Square, Terminal } from "lucide-react";
 import { apiFetch } from "../../api/client";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { toast } from "../../components/ui/Toast";
+import { useLayoutStore } from "../workbench/layoutStore";
 
 export interface BrowserNekoStatus {
   ok: boolean;
@@ -134,6 +135,17 @@ export function BrowserNekoControl({ hasUnsavedChanges = false }: { hasUnsavedCh
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </Button>
+          {status?.live_view_url && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => useLayoutStore.getState().openPanel("browser")}
+              title="前往可视化浏览器面板查看并接管画面"
+            >
+              <Globe className="mr-1 h-3 w-3" />
+              打开可视化界面
+            </Button>
+          )}
           {status?.proxy_config && (
             <Button
               size="sm"
