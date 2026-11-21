@@ -8,6 +8,7 @@ permissions:
   - tools:register
   - fs:workspace_write
   - network:outbound
+  - web:routes
 config_schema:
   executable:
     type: string
@@ -18,7 +19,67 @@ config_schema:
     type: string
     label: 远程 CDP 发现地址
     default: ""
-    help: 远程模式填写 http(s)://HOST:PORT/json/version；留空使用本地 Chrome。
+    help: 远程或本机 Docker Neko 模式填写 http(s)://HOST:PORT/json/version；留空使用本地 Chrome。
+  live_view_url:
+    type: string
+    label: 可视化浏览器地址（如 Neko）
+    default: ""
+    help: 选填：填写 Neko 等可视化浏览器的 HTTPS/HTTP 地址后，WebUI 侧边栏会显示直达与内嵌入口；留空则隐藏。
+  neko_enabled:
+    type: boolean
+    label: 启用本机 Docker Neko 托管
+    default: false
+    help: 开启后可通过插件页直接同步配置并启停本机 Docker Neko（Chromium + WebRTC + 本机 CDP）；若 cdp_discovery_url 留空将自动连接 127.0.0.1:<neko_cdp_port>。
+  neko_dir:
+    type: string
+    label: Neko 数据目录
+    default: "/var/lib/tentacle-browser"
+    help: 保存 docker-compose.yaml、持久化 Chromium profile 与 0600 权限 .env 的宿主机目录。
+  neko_image:
+    type: string
+    label: Neko Docker 镜像
+    default: "ghcr.io/m1k1o/neko/chromium:latest"
+    help: 推荐使用官方预构建 Chromium 镜像，也可选 ghcr.io/m1k1o/neko/google-chrome:latest。
+  neko_bind:
+    type: string
+    label: Neko Web 监听地址
+    default: "127.0.0.1"
+    help: 推荐 127.0.0.1 配合现有 HTTPS 反代；如需直接对外监听可改为 0.0.0.0 或 Tailscale IP。
+  neko_http_port:
+    type: integer
+    label: Neko Web 端口
+    default: 8080
+    minimum: 1
+    maximum: 65535
+  neko_cdp_port:
+    type: integer
+    label: Neko 本机 CDP 端口
+    default: 9222
+    minimum: 1
+    maximum: 65535
+    help: 始终仅绑定宿主机 127.0.0.1，绝不对外暴露。
+  neko_mux_port:
+    type: integer
+    label: Neko WebRTC MUX 端口
+    default: 52000
+    minimum: 1
+    maximum: 65535
+    help: WebRTC 单端口 TCP+UDP 复用端口，需在服务器防火墙/安全组放行该端口的 UDP 与 TCP。
+  neko_nat_ip:
+    type: string
+    label: Neko WebRTC 对外 IP / 域名
+    default: ""
+    help: 留空由 Neko 启动时自动探测公网 IP；推荐填域名（每次连接自动解析），支持逗号分隔多个地址。
+  neko_screen:
+    type: string
+    label: Neko 虚拟屏幕分辨率
+    default: "1280x720@24"
+    help: 格式 WxH@FPS，例如 1280x720@24 或 1920x1080@30。
+  neko_shm_size:
+    type: string
+    label: Neko 共享内存（shm_size）
+    default: ""
+    help: 留空按宿主机内存自动选择（2G 机器 512m，其余 1g），也可手动填写如 512m / 1g / 2g。
   cdp_discovery_timeout:
     type: number
     label: CDP 发现超时（秒）

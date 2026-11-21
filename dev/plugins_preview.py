@@ -601,8 +601,9 @@ def attach_plugins(app, authenticated):
     @app.get("/api/plugins/ui", dependencies=[Depends(auth)])
     async def plugins_ui_list():
         if app.state.scenario == "empty":
-            return {"items": []}
+            return {"items": [], "browser_live_view": None}
         items = []
+        browser_live_view = None
         for p in state["plugins"]:
             if p.get("status") == "active" and p.get("ui"):
                 ui = p["ui"]
@@ -615,7 +616,17 @@ def attach_plugins(app, authenticated):
                     "placement": ui.get("placement") or "sidebar",
                     "has_routes": bool(p.get("routes")),
                 })
-        return {"items": items}
+            if p.get("id") == "browser" and p.get("status") == "active":
+                bcfg = p.get("config") or {}
+                live_url = str(bcfg.get("live_view_url") or "").strip()
+                if live_url.startswith(("http://", "https://")):
+                    cdp_cfg = bool(str(bcfg.get("cdp_discovery_url") or "").strip())
+                    browser_live_view = {
+                        "live_view_url": live_url,
+                        "cdp_configured": cdp_cfg,
+                        "mode": "cdp" if cdp_cfg else "local",
+                    }
+        return {"items": items, "browser_live_view": browser_live_view}
 
     @app.get("/api/plugins/{plugin_id}/ui/document", dependencies=[Depends(auth)])
     async def plugins_ui_document(plugin_id: str):
@@ -683,6 +694,65 @@ def attach_plugins(app, authenticated):
             except Exception:
                 app.state.sockets.discard(socket)
         return {"ok": True}
+
+    neko_preview_state = {"running": False}
+
+    @app.get("/api/plugins/ext/browser/live-view", dependencies=[Depends(auth)])
+    async def browser_live_view_preview():
+        bp = next((p for p in state["plugins"] if p["id"] == "browser"), None)
+        bcfg = (bp or {}).get("config") or {}
+        live_url = str(bcfg.get("live_view_url") or "").strip()
+        cdp_cfg = bool(str(bcfg.get("cdp_discovery_url") or "").strip()) or bool(bcfg.get("neko_enabled", False))
+        return {
+            "configured": bool(live_url),
+            "live_view_url": live_url,
+            "url_error": None,
+            "cdp_configured": cdp_cfg,
+            "cdp_reachable": cdp_cfg and neko_preview_state["running"],
+            "browser_version": "Chromium (preview)" if (cdp_cfg and neko_preview_state["running"]) else "",
+            "neko_enabled": bool(bcfg.get("neko_enabled", False)),
+            "mode": "cdp" if cdp_cfg else "local",
+        }
+
+    @app.get("/api/plugins/ext/browser/neko/status", dependencies=[Depends(auth)])
+    async def browser_neko_status_preview():
+        bp = next((p for p in state["plugins"] if p["id"] == "browser"), None)
+        bcfg = (bp or {}).get("config") or {}
+        cdp_port = int(bcfg.get("neko_cdp_port") or 9222)
+        http_port = int(bcfg.get("neko_http_port") or 8080)
+        bind = str(bcfg.get("neko_bind") or "127.0.0.1")
+        mux_port = int(bcfg.get("neko_mux_port") or 52000)
+        running = neko_preview_state["running"]
+        return {
+            "ok": True,
+            "available": True,
+            "control_mode": "preview",
+            "docker_available": True,
+            "installed": True,
+            "container_name": "tentacle-browser-neko",
+            "container_state": "running" if running else "exited",
+            "running": running,
+            "cdp_port": cdp_port,
+            "cdp_url": f"http://127.0.0.1:{cdp_port}/json/version",
+            "cdp_reachable": running,
+            "browser_version": "Chromium (preview)" if running else "",
+            "http_listen": f"http://{bind}:{http_port}",
+            "mux_port": mux_port,
+            "nat_ip": str(bcfg.get("neko_nat_ip") or ""),
+            "screen": str(bcfg.get("neko_screen") or "1280x720@24"),
+            "install_dir": str(bcfg.get("neko_dir") or "/var/lib/tentacle-browser"),
+            "live_view_url": str(bcfg.get("live_view_url") or ""),
+            "proxy_config": f"# preview reverse_proxy 127.0.0.1:{http_port}",
+        }
+
+    @app.post("/api/plugins/ext/browser/neko/action", dependencies=[Depends(auth)])
+    async def browser_neko_action_preview(body: dict):
+        act = str((body or {}).get("action") or "").strip().lower()
+        if act in {"start", "restart"}:
+            neko_preview_state["running"] = True
+        elif act == "stop":
+            neko_preview_state["running"] = False
+        return await browser_neko_status_preview()
 
     @app.get("/api/plugins/ext/{_rest:path}", dependencies=[Depends(auth)])
     async def plugins_ext_preview():

@@ -430,8 +430,15 @@ class PluginUiItemDto(FlexibleModel):
     has_routes: bool = False
 
 
+class BrowserLiveViewSummaryDto(FlexibleModel):
+    live_view_url: str
+    cdp_configured: bool = False
+    mode: Literal["cdp", "local"] = "local"
+
+
 class PluginUiListResponse(FlexibleModel):
     items: list[PluginUiItemDto] = []
+    browser_live_view: BrowserLiveViewSummaryDto | None = None
 
 
 class PluginUiDocumentResponse(FlexibleModel):

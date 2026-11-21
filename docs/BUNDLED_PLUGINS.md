@@ -24,6 +24,7 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 
 - **运行模式**：
   - **本地模式**（默认，`cdp_discovery_url` 为空）：使用服务器上的 Chrome 与独立持久化 `profile`，可配置 `headed`（有头/无头）、`chrome_path`、`args`。
+  - **本机 Docker Neko 模式（推荐可视化接管）**：使用 `tentacle browser install` 一键部署带 WebRTC 画面流与本机 CDP（`http://127.0.0.1:9222/json/version`）的 Chromium 容器，并在配置中填写 `live_view_url` 以在 WebUI 侧边栏直达或内嵌打开；详见 [Docker Neko 可视化浏览器指南](BROWSER_NEKO.md)。
   - **远程 CDP 模式**：填写 Windows / 本机转发地址（如 `http://WINDOWS_TAILSCALE_HOST:PORT/json/version`），通过 tailnet 控制远程桌面已登录 Chrome；完整搭建步骤见 [远程 Chrome 说明](REMOTE_BROWSER.md)。
 - **常用配置项**：
   - `session`：浏览器会话标识（默认 `tentacle`）。

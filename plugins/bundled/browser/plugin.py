@@ -29,6 +29,88 @@ _REMOTE_CONNECTION_FLAGS = {
 }
 
 
+def normalize_live_view_url(raw_url: str) -> str:
+    """校验可视化浏览器地址（如 Neko），仅允许不含凭据的 http(s) URL。"""
+    candidate = str(raw_url or "").strip()
+    if not candidate:
+        return ""
+    if any(ch in candidate for ch in ("\r", "\n", "\x00")):
+        raise ValueError("live_view_url 包含非法控制字符")
+    parsed = urlsplit(candidate)
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise ValueError("live_view_url 必须是无用户名/密码的 http:// 或 https:// 地址")
+    return candidate
+
+
+def _probe_cdp_info(discovery_url: str, timeout: float = 2.0) -> tuple[bool, str]:
+    """轻量探测 CDP /json/version 可达性与浏览器版本，绝不返回 webSocketDebuggerUrl。"""
+    if not discovery_url:
+        return False, ""
+    try:
+        endpoint = urlsplit(discovery_url)
+        if (
+            endpoint.scheme not in {"http", "https"}
+            or not endpoint.hostname
+            or endpoint.username is not None
+            or endpoint.password is not None
+        ):
+            return False, ""
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(discovery_url, timeout=timeout) as response:
+            payload = response.read(65537)
+        if len(payload) > 65536:
+            return False, ""
+        data = json.loads(payload)
+        if not isinstance(data, dict) or not data.get("webSocketDebuggerUrl"):
+            return False, ""
+        return True, str(data.get("Browser") or "").strip()
+    except Exception:
+        return False, ""
+
+
+def _effective_cdp_discovery_url(cfg: dict) -> str:
+    explicit = (cfg.get("cdp_discovery_url") or "").strip()
+    if explicit:
+        return explicit
+    if bool(cfg.get("neko_enabled", False)):
+        try:
+            port = int(cfg.get("neko_cdp_port", 9222) or 9222)
+        except (TypeError, ValueError):
+            port = 9222
+        if 1 <= port <= 65535:
+            return f"http://127.0.0.1:{port}/json/version"
+    return ""
+
+
+def _load_browser_neko_module():
+    from scripts import browser_neko
+
+    return browser_neko
+
+
+def _latest_browser_config(fallback_cfg: dict) -> dict:
+    """合并已生效配置与用户 config.yaml 中最新保存的 browser 插件覆盖项（不含默认值，避免覆盖运行时注入配置）。"""
+    merged = dict(fallback_cfg or {})
+    try:
+        from config.files import parse_config
+        from config.store import ConfigStore
+
+        store = ConfigStore()
+        if store.path.is_file():
+            raw = parse_config(store.path.read_text(encoding="utf-8"))
+            item = ((raw.get("plugins") or {}).get("items") or {}).get("browser")
+            if isinstance(item, dict) and isinstance(item.get("config"), dict):
+                merged.update(item["config"])
+    except Exception:
+        pass
+    return merged
+
+
 def _discover_cdp_url(discovery_url: str, timeout: float) -> str:
     """每次读取浏览器端点，按发现地址改写 host/port，保留 WebSocket 路径。"""
     endpoint = urlsplit(discovery_url)
@@ -136,7 +218,7 @@ def run_browser_command(args: dict, cfg: dict | None = None) -> str | dict:
     if not words:
         return "错误：command 不能为空。"
 
-    discovery_url = (cfg.get("cdp_discovery_url") or "").strip()
+    discovery_url = _effective_cdp_discovery_url(cfg)
     remote = bool(discovery_url)
     if remote and (
         words[0].startswith("-")
@@ -268,8 +350,70 @@ async def execute_browser(args: dict, cfg: dict | None = None, upload_image_fn=N
 
 
 def setup(ctx) -> None:
-    """注册 browser 插件工具（`p_browser__browser`）。"""
+    """注册 browser 插件工具（`p_browser__browser`）与可选的可视化入口只读状态路由。"""
     plugin_cfg = ctx.config
+
+    if ctx.has_permission("web:routes"):
+        from fastapi import APIRouter, Body, HTTPException
+
+        router = APIRouter()
+
+        @router.get("/live-view")
+        async def get_live_view_status():
+            cfg_now = _latest_browser_config(plugin_cfg)
+            raw_live = str(cfg_now.get("live_view_url") or "").strip()
+            live_url = ""
+            url_error: str | None = None
+            if raw_live:
+                try:
+                    live_url = normalize_live_view_url(raw_live)
+                except ValueError as exc:
+                    url_error = str(exc)
+
+            cdp_url = _effective_cdp_discovery_url(cfg_now)
+            cdp_configured = bool(cdp_url)
+            cdp_reachable = False
+            browser_version = ""
+            if cdp_configured:
+                cdp_reachable, browser_version = await asyncio.to_thread(_probe_cdp_info, cdp_url, 2.0)
+
+            return {
+                "configured": bool(live_url),
+                "live_view_url": live_url,
+                "url_error": url_error,
+                "cdp_configured": cdp_configured,
+                "cdp_reachable": cdp_reachable,
+                "browser_version": browser_version,
+                "neko_enabled": bool(cfg_now.get("neko_enabled", False)),
+                "mode": "cdp" if cdp_configured else "local",
+            }
+
+        @router.get("/neko/status")
+        async def get_neko_status():
+            cfg_now = _latest_browser_config(plugin_cfg)
+            neko_mod = _load_browser_neko_module()
+            try:
+                return await asyncio.to_thread(neko_mod.control_neko_from_app, "status", cfg_now)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        @router.post("/neko/action")
+        async def run_neko_action(body: dict = Body(...)):
+            act = str((body or {}).get("action") or "").strip().lower()
+            if act not in {"start", "stop", "restart", "proxy_config"}:
+                raise HTTPException(status_code=400, detail=f"不支持的 Neko 操作: {act}")
+            cfg_now = _latest_browser_config(plugin_cfg)
+            neko_mod = _load_browser_neko_module()
+            try:
+                return await asyncio.to_thread(neko_mod.control_neko_from_app, act, cfg_now)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        ctx.register_router(router)
 
     async def browser_tool(args: dict) -> str | list[dict]:
         return await execute_browser(args, plugin_cfg, upload_image_fn=ctx.files.upload_image)

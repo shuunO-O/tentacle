@@ -4442,6 +4442,34 @@
         "type": "object",
         "title": "Body_inspect_backup_import_api_backups_import_inspect_post"
       },
+      "BrowserLiveViewSummaryDto": {
+        "properties": {
+          "live_view_url": {
+            "type": "string",
+            "title": "Live View Url"
+          },
+          "cdp_configured": {
+            "type": "boolean",
+            "title": "Cdp Configured",
+            "default": false
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "cdp",
+              "local"
+            ],
+            "title": "Mode",
+            "default": "local"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "live_view_url"
+        ],
+        "title": "BrowserLiveViewSummaryDto"
+      },
       "ChangeBody": {
         "properties": {
           "revision": {
@@ -6165,6 +6193,16 @@
             "type": "array",
             "title": "Items",
             "default": []
+          },
+          "browser_live_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrowserLiveViewSummaryDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": true,

@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-    printf '用法: tentacle [start|restart|stop|status|logs|version|update|revert|check-updates|update-status|help]\n'
+    printf '用法: tentacle [start|restart|stop|status|logs|version|update|revert|check-updates|update-status|browser|help]\n'
     printf '  tentacle check-updates              立即检查正式版本，不安装\n'
     printf '  tentacle update-status              离线查看最近检查结果\n'
     printf '  tentacle version                    查看当前生产版本\n'
@@ -11,6 +11,8 @@ usage() {
     printf '  tentacle update --recover            恢复中断的更新\n'
     printf '  tentacle revert [vX.Y]               预览回到上一次成功版本\n'
     printf '  tentacle revert --apply              确认后切换至上一个完整版本并验证\n'
+    printf '  tentacle browser <install|start|stop|restart|status|logs|credentials|proxy-config|uninstall>\n'
+    printf '                                      管理 Docker Neko 可视化浏览器（WebRTC + 本机 CDP）\n'
     exit "${1:-2}"
 }
 
@@ -78,6 +80,28 @@ case "$action" in
             journalctl -u "$service" -n 80 --no-pager
         else
             sudo journalctl -u "$service" -n 80 --no-pager
+        fi
+        ;;
+    browser)
+        script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+        helper=""
+        for cand in "${TENTACLE_BROWSER_HELPER:-}" "$script_dir/browser_neko.py" /opt/tentacle/current/scripts/browser_neko.py; do
+            if [ -n "$cand" ] && [ -f "$cand" ]; then
+                helper="$cand"
+                break
+            fi
+        done
+        if [ -z "$helper" ]; then
+            printf '未找到 browser_neko.py，请升级 Tentacle 或直接执行 python3 scripts/browser_neko.py。\n' >&2
+            exit 1
+        fi
+        if [ "$#" -eq 0 ] || [ "${1:-}" = '--help' ] || [ "${1:-}" = '-h' ]; then
+            exec /usr/bin/python3 "$helper" --help
+        fi
+        if [ "$(id -u)" -eq 0 ]; then
+            exec /usr/bin/python3 "$helper" "$@"
+        else
+            exec sudo /usr/bin/python3 "$helper" "$@"
         fi
         ;;
     help|-h|--help)

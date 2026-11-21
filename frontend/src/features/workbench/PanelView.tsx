@@ -5,6 +5,9 @@ import { pluginIdFromPanelId, type PanelId } from "./panels";
 const MemoryGraphPanel = lazy(() =>
   import("../memory-graph/MemoryGraphPanel").then((m) => ({ default: m.MemoryGraphPanel })),
 );
+const BrowserViewPanel = lazy(() =>
+  import("../browser/BrowserViewPanel").then((m) => ({ default: m.BrowserViewPanel })),
+);
 const SubagentsPanel = lazy(() =>
   import("../subagents/SubagentsPanel").then((m) => ({ default: m.SubagentsPanel })),
 );
@@ -54,6 +57,7 @@ export function PanelView({ panelId }: { panelId: PanelId }) {
   return (
     <Suspense fallback={<PanelFallback />}>
       {pluginUiId && <PluginUiPanel pluginId={pluginUiId} />}
+      {panelId === "browser" && <BrowserViewPanel />}
       {panelId === "graph" && <MemoryGraphPanel />}
       {panelId === "subagents" && <SubagentsPanel />}
       {panelId === "dedup" && <DedupPanel />}

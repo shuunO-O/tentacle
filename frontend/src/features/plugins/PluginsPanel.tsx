@@ -4,6 +4,7 @@ import {
   AppWindow,
   ChevronDown,
   ChevronRight,
+  Globe,
   KeyRound,
   Plug,
   Plus,
@@ -22,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/Ta
 import { toast } from "../../components/ui/Toast";
 import { useLayoutStore } from "../workbench/layoutStore";
 import { pluginPanelId } from "../workbench/panels";
+import { BrowserNekoControl } from "../browser/BrowserNekoControl";
 
 export interface PermissionDetail {
   permission: string;
@@ -603,6 +605,20 @@ export function PluginsPanel() {
                             打开页面
                           </Button>
                         )}
+                        {plugin.id === "browser" &&
+                          plugin.status === "active" &&
+                          typeof plugin.config?.live_view_url === "string" &&
+                          /^https?:\/\//i.test(plugin.config.live_view_url.trim()) && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              aria-label="打开可视化浏览器"
+                              onClick={() => openPanel("browser")}
+                            >
+                              <Globe className="h-3.5 w-3.5 text-accent" />
+                              打开浏览器
+                            </Button>
+                          )}
                         {plugin.status === "pending" && (
                           <Button
                             size="sm"
@@ -657,6 +673,14 @@ export function PluginsPanel() {
 
                     {expanded && (
                       <div className="space-y-3 border-t border-border-soft pt-3">
+                        {plugin.id === "browser" && plugin.status === "active" && (
+                          <BrowserNekoControl
+                            hasUnsavedChanges={
+                              JSON.stringify(localDrafts[plugin.id] ?? {}) !==
+                              JSON.stringify(plugin.saved_config ?? plugin.config ?? {})
+                            }
+                          />
+                        )}
                         {permCount > 0 && (
                           <div className="space-y-1.5 rounded-xl bg-elevated/45 p-3">
                             <div className="flex items-center gap-1.5 text-xs font-medium text-fg">

@@ -171,6 +171,7 @@ export function WorkbenchLayout() {
   const secondaryPanel = useLayoutStore((s) => s.secondaryPanel);
   const codingEnabled = useLayoutStore((s) => s.domainStatus.codingEnabled);
   const pluginUis = useLayoutStore((s) => s.pluginUis);
+  const browserLiveView = useLayoutStore((s) => s.browserLiveView);
   const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed);
   const drawerOpen = useLayoutStore((s) => s.drawerOpen);
   const mobileNavOpen = useLayoutStore((s) => s.mobileNavOpen);
@@ -187,11 +188,14 @@ export function WorkbenchLayout() {
   const resolvedTheme = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
 
+  const visibleBuiltinPanels = PANELS.filter(
+    (panel) => panel.id !== "browser" || Boolean(browserLiveView?.live_view_url),
+  );
   const allPluginPanels = pluginUis.map(buildPluginPanelDef);
   const sidebarPluginPanels = pluginUis
     .filter((item) => item.placement === "sidebar")
     .map(buildPluginPanelDef);
-  const allSplitCandidates = [...PANELS, ...allPluginPanels];
+  const allSplitCandidates = [...visibleBuiltinPanels, ...allPluginPanels];
   const navGroups =
     sidebarPluginPanels.length > 0
       ? [...PANEL_GROUPS, { id: "plugin_ui" as const, label: "插件页面" }]
@@ -199,7 +203,7 @@ export function WorkbenchLayout() {
   const navPanelsByGroup = (groupId: (typeof navGroups)[number]["id"]) =>
     groupId === "plugin_ui"
       ? sidebarPluginPanels
-      : PANELS.filter((panel) => panel.group === groupId);
+      : visibleBuiltinPanels.filter((panel) => panel.group === groupId);
 
   const primaryDef = getPanelDef(primaryPanel, pluginUis);
   const themeActionLabel = resolvedTheme === "dark" ? "浅色模式" : "深色模式";

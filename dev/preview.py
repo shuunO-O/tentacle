@@ -156,6 +156,7 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
     spa_routes = (
         "/",
         "/chat",
+        "/browser",
         "/graph",
         "/config",
         "/plugins",

@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 from typing import Any
 
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse
 
@@ -21,6 +23,7 @@ from plugins.permissions import PERMISSION_CATALOG, PluginManifestError, describ
 from plugins.ui_bundle import build_plugin_ui_document, resolve_ui_asset_file
 from runtime.paths import state_path
 from web.schemas import (
+    BrowserLiveViewSummaryDto,
     ConfigurationRestartResponse,
     McpServerUpsertBody,
     PluginDecisionBody,
@@ -342,11 +345,44 @@ def plugins_router(plugin_manager, auth_dep, *, config_service=None, store: Conf
     async def get_plugins():
         return snapshot_payload()
 
+    def _active_browser_live_view() -> BrowserLiveViewSummaryDto | None:
+        if plugin_manager is None:
+            return None
+        states = getattr(plugin_manager, "states", None)
+        if not isinstance(states, dict):
+            return None
+        browser_state = states.get("browser")
+        if browser_state is None or getattr(browser_state, "status", None) != "active":
+            return None
+        cfg = getattr(browser_state, "config", None)
+        if not isinstance(cfg, dict):
+            return None
+        raw_url = str(cfg.get("live_view_url") or "").strip()
+        if not raw_url or any(ch in raw_url for ch in ("\r", "\n", "\x00")):
+            return None
+        parsed = urlsplit(raw_url)
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            return None
+        cdp_configured = bool(str(cfg.get("cdp_discovery_url") or "").strip()) or bool(cfg.get("neko_enabled", False))
+        return BrowserLiveViewSummaryDto(
+            live_view_url=raw_url,
+            cdp_configured=cdp_configured,
+            mode="cdp" if cdp_configured else "local",
+        )
+
     @router.get("/ui", response_model=PluginUiListResponse)
     async def list_plugin_uis():
         if plugin_manager is None or not hasattr(plugin_manager, "list_active_uis"):
-            return PluginUiListResponse(items=[])
-        return PluginUiListResponse(items=plugin_manager.list_active_uis())
+            return PluginUiListResponse(items=[], browser_live_view=_active_browser_live_view())
+        return PluginUiListResponse(
+            items=plugin_manager.list_active_uis(),
+            browser_live_view=_active_browser_live_view(),
+        )
 
     def _require_active_ui(plugin_id: str):
         if not PLUGIN_ID_RE.fullmatch(plugin_id):

@@ -6,7 +6,13 @@ import {
   type WsMaintenanceUpdatedData,
   type WsSubagentUpdatedData,
 } from "../../api/ws";
-import { getPanelDef, panelFromPathname, type PanelId, type PluginUiEntry } from "./panels";
+import {
+  getPanelDef,
+  panelFromPathname,
+  type BrowserLiveViewSummary,
+  type PanelId,
+  type PluginUiEntry,
+} from "./panels";
 
 export type DrawerTab = "terminal" | "activity";
 
@@ -76,6 +82,7 @@ interface LayoutState {
   graphFocusConceptId: string | null;
   domainStatus: DomainStatusSnapshot;
   pluginUis: PluginUiEntry[];
+  browserLiveView: BrowserLiveViewSummary | null;
 
   openPanel: (id: PanelId, opts?: { inSplit?: boolean; skipPushState?: boolean }) => void;
   toggleSidebar: () => void;
@@ -128,6 +135,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     latestEventNote: null,
   },
   pluginUis: [],
+  browserLiveView: null,
 
   openPanel: (id, opts = {}) => {
     const state = get();
@@ -237,9 +245,19 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
 export async function refreshPluginUis(): Promise<void> {
   try {
-    const res = await apiFetch<{ items?: PluginUiEntry[] }>("/api/plugins/ui");
+    const res = await apiFetch<{
+      items?: PluginUiEntry[];
+      browser_live_view?: BrowserLiveViewSummary | null;
+    }>("/api/plugins/ui");
+    const patch: Partial<Pick<LayoutState, "pluginUis" | "browserLiveView">> = {};
     if (Array.isArray(res?.items)) {
-      useLayoutStore.setState({ pluginUis: res.items });
+      patch.pluginUis = res.items;
+    }
+    if (res && "browser_live_view" in res) {
+      patch.browserLiveView = res.browser_live_view ?? null;
+    }
+    if (Object.keys(patch).length > 0) {
+      useLayoutStore.setState(patch);
     }
   } catch {
     // Ignore transient boot fetch errors; PluginsPanel refreshes when opened.

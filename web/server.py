@@ -175,6 +175,7 @@ def create_app(
     spa_routes = (
         "/",
         "/chat",
+        "/browser",
         "/graph",
         "/config",
         "/plugins",

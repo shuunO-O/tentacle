@@ -6,6 +6,7 @@ import {
   Bot,
   Database,
   GitMerge,
+  Globe,
   MessageSquare,
   Network,
   Plug,
@@ -17,6 +18,7 @@ import {
 
 export type BuiltinPanelId =
   | "chat"
+  | "browser"
   | "graph"
   | "config"
   | "plugins"
@@ -42,6 +44,12 @@ export interface PluginUiEntry {
   description: string;
   placement: "sidebar" | "plugins_only";
   has_routes: boolean;
+}
+
+export interface BrowserLiveViewSummary {
+  live_view_url: string;
+  cdp_configured: boolean;
+  mode: "cdp" | "local";
 }
 
 const PLUGIN_ID_RE = /^[a-z][a-z0-9_-]{0,47}$/;
@@ -93,6 +101,14 @@ export const PANELS: PanelDefinition[] = [
     route: "/subagents",
     description: "异步后台任务、实时推送与编码工作区",
     icon: Bot,
+  },
+  {
+    id: "browser",
+    group: "chat",
+    label: "可视化浏览器",
+    route: "/browser",
+    description: "内嵌或新标签打开 Neko 等可视化浏览器画面进行人工接管",
+    icon: Globe,
   },
   {
     id: "graph",

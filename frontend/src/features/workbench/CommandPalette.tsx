@@ -15,12 +15,16 @@ export function CommandPalette() {
   const secondaryPanel = useLayoutStore((s) => s.secondaryPanel);
   const codingEnabled = useLayoutStore((s) => s.domainStatus.codingEnabled);
   const pluginUis = useLayoutStore((s) => s.pluginUis);
+  const browserLiveView = useLayoutStore((s) => s.browserLiveView);
   const askChatPrompt = useLayoutStore((s) => s.askChatPrompt);
 
   const resolvedTheme = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const compact = useIsCompactLayout();
-  const allPanels = [...PANELS, ...pluginUis.map(buildPluginPanelDef)];
+  const visibleBuiltinPanels = PANELS.filter(
+    (panel) => panel.id !== "browser" || Boolean(browserLiveView?.live_view_url),
+  );
+  const allPanels = [...visibleBuiltinPanels, ...pluginUis.map(buildPluginPanelDef)];
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

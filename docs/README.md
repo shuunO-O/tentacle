@@ -14,7 +14,7 @@
 - [公开网页搜索与提取](WEB_TOOLS.md)
 - [记忆写入前概念对齐](CONCEPT_ALIGNMENT.md) · [历史概念去重](MEMORY_CONCEPT_DEDUP.md)
 - [记忆检索与原文证据](MEMORY_RETRIEVAL.md)
-- [远程 Chrome（可选）](REMOTE_BROWSER.md)
+- [Docker Neko 可视化浏览器（可选）](BROWSER_NEKO.md) · [远程 Chrome（可选）](REMOTE_BROWSER.md)
 
 ## 开发参考
 

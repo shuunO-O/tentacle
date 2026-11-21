@@ -2000,6 +2000,24 @@ export interface components {
             /** Passphrase */
             passphrase?: string | null;
         };
+        /** BrowserLiveViewSummaryDto */
+        BrowserLiveViewSummaryDto: {
+            /** Live View Url */
+            live_view_url: string;
+            /**
+             * Cdp Configured
+             * @default false
+             */
+            cdp_configured: boolean;
+            /**
+             * Mode
+             * @default local
+             * @enum {string}
+             */
+            mode: "cdp" | "local";
+        } & {
+            [key: string]: unknown;
+        };
         /** ChangeBody */
         ChangeBody: {
             /** Revision */
@@ -2655,6 +2673,7 @@ export interface components {
              * @default []
              */
             items: components["schemas"]["PluginUiItemDto"][];
+            browser_live_view?: components["schemas"]["BrowserLiveViewSummaryDto"] | null;
         } & {
             [key: string]: unknown;
         };
