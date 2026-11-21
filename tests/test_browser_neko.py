@@ -53,12 +53,18 @@ def test_browser_neko_validators_and_renderers():
     assert browser_neko.recommend_shm_size(4096) == "1g"
 
     sup = browser_neko.render_chromium_supervisord_conf()
-    assert "--remote-debugging-port=9222" in sup
-    assert "--remote-debugging-address=0.0.0.0" in sup
+    assert "--remote-debugging-port=9223" in sup
+    assert "--remote-debugging-address=0.0.0.0" not in sup
     assert "--user-data-dir=/home/neko/.config/chromium" in sup
     assert "--bwsi" not in sup
     assert "chromium-unlock" not in sup
     assert "SingletonLock" in sup
+    assert "[program:cdp-proxy]" in sup
+    assert "/etc/neko/cdp-proxy.py" in sup
+
+    proxy_py = browser_neko.render_cdp_proxy_script()
+    compile(proxy_py, "cdp-proxy.py", "exec")
+    assert "9222" in proxy_py and "9223" in proxy_py
 
     cfg = browser_neko.NekoConfig(
         install_dir="/var/lib/tentacle-browser",
@@ -147,6 +153,7 @@ def test_browser_neko_cli_install_no_start_and_tentacle_config_sync(tmp_path):
 
     assert (install_dir / "docker-compose.yaml").is_file()
     assert (install_dir / "chromium.conf").is_file()
+    assert (install_dir / "cdp-proxy.py").is_file()
     assert (install_dir / "reverse-proxy.example.conf").is_file()
     assert (install_dir / ".env").is_file()
     assert (install_dir / "profile").is_dir()

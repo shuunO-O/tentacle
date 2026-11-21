@@ -218,11 +218,64 @@ def config_from_plugin_dict(
     )
 
 
+def render_cdp_proxy_script() -> str:
+    """生成容器内轻量 TCP 转发脚本（0.0.0.0:9222 -> 127.0.0.1:9223），兼容新版 Chromium 强制回环监听。"""
+    return """#!/usr/bin/env python3
+import asyncio
+import signal
+
+
+async def _pipe(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        while True:
+            chunk = await reader.read(65536)
+            if not chunk:
+                break
+            writer.write(chunk)
+            await writer.drain()
+    except (ConnectionError, OSError, asyncio.CancelledError):
+        pass
+    finally:
+        try:
+            writer.close()
+        except Exception:
+            pass
+
+
+async def _handle(client_r: asyncio.StreamReader, client_w: asyncio.StreamWriter) -> None:
+    try:
+        upstream_r, upstream_w = await asyncio.open_connection("127.0.0.1", 9223)
+    except OSError:
+        client_w.close()
+        return
+    t1 = asyncio.create_task(_pipe(client_r, upstream_w))
+    t2 = asyncio.create_task(_pipe(upstream_r, client_w))
+    await asyncio.gather(t1, t2, return_exceptions=True)
+
+
+async def main() -> None:
+    server = await asyncio.start_server(_handle, "0.0.0.0", 9222, reuse_address=True)
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except NotImplementedError:
+            pass
+    async with server:
+        await stop.wait()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+"""
+
+
 def render_chromium_supervisord_conf() -> str:
-    """生成覆盖容器内 /etc/neko/supervisord/chromium.conf 的配置（开启持久化与 CDP，兼容 chromium/google-chrome）。"""
+    """生成覆盖容器内 /etc/neko/supervisord/chromium.conf 的配置（开启持久化、127.0.0.1:9223 CDP 与 9222 容器转发）。"""
     return """[program:chromium]
 environment=HOME="/home/%(ENV_USER)s",USER="%(ENV_USER)s",DISPLAY="%(ENV_DISPLAY)s"
-command=/bin/sh -c 'rm -f /home/neko/.config/chromium/SingletonLock /home/neko/.config/chromium/SingletonSocket /home/neko/.config/chromium/SingletonCookie && exec "$(command -v chromium || command -v google-chrome || command -v chromium-browser)" --no-sandbox --window-position=0,0 --display=%(ENV_DISPLAY)s --user-data-dir=/home/neko/.config/chromium --no-first-run --no-default-browser-check --start-maximized --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0'
+command=/bin/sh -c 'rm -f /home/neko/.config/chromium/SingletonLock /home/neko/.config/chromium/SingletonSocket /home/neko/.config/chromium/SingletonCookie && exec "$(command -v chromium || command -v google-chrome || command -v chromium-browser)" --no-sandbox --window-position=0,0 --display=%(ENV_DISPLAY)s --user-data-dir=/home/neko/.config/chromium --no-first-run --no-default-browser-check --start-maximized --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage --remote-debugging-port=9223'
 stopsignal=INT
 autorestart=true
 priority=800
@@ -230,6 +283,17 @@ user=%(ENV_USER)s
 stdout_logfile=/var/log/neko/chromium.log
 stdout_logfile_maxbytes=50MB
 stdout_logfile_backups=3
+redirect_stderr=true
+
+[program:cdp-proxy]
+command=/usr/bin/python3 -u /etc/neko/cdp-proxy.py
+stopsignal=TERM
+autorestart=true
+priority=750
+user=%(ENV_USER)s
+stdout_logfile=/var/log/neko/cdp-proxy.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=2
 redirect_stderr=true
 
 [program:openbox]
@@ -280,6 +344,7 @@ services:
     volumes:
       - "./profile:/home/neko/.config/chromium"
       - "./chromium.conf:{sup_target}:ro"
+      - "./cdp-proxy.py:/etc/neko/cdp-proxy.py:ro"
     environment:
 {env_block}
 """
@@ -406,6 +471,7 @@ def write_install_files(cfg: NekoConfig, *, rotate_passwords: bool = False) -> t
             pass
 
     creds, rotated = ensure_env_passwords(root / ".env", rotate=rotate_passwords)
+    _atomic_write(root / "cdp-proxy.py", render_cdp_proxy_script(), mode=0o644)
     _atomic_write(root / "chromium.conf", render_chromium_supervisord_conf(), mode=0o644)
     _atomic_write(root / "docker-compose.yaml", render_docker_compose(cfg), mode=0o644)
     _atomic_write(root / "reverse-proxy.example.conf", render_reverse_proxy_examples(cfg), mode=0o644)
