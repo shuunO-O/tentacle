@@ -170,6 +170,7 @@ export function BrowserNekoControl({ hasUnsavedChanges = false }: { hasUnsavedCh
           {status.http_listen && <span>Web: {status.http_listen}</span>}
           {status.cdp_port && <span>CDP: 127.0.0.1:{status.cdp_port}</span>}
           {status.mux_port && <span>WebRTC MUX: {status.mux_port}/udp+tcp</span>}
+          <span>NAT IP: {status.nat_ip || "自动探测"}</span>
           {status.screen && <span>分辨率: {status.screen}</span>}
           {status.browser_version && <span>{status.browser_version}</span>}
         </div>

@@ -219,22 +219,10 @@ def config_from_plugin_dict(
 
 
 def render_chromium_supervisord_conf() -> str:
-    """生成覆盖容器内 /etc/neko/supervisord/chromium.conf 的配置（开启持久化与 CDP）。"""
+    """生成覆盖容器内 /etc/neko/supervisord/chromium.conf 的配置（开启持久化与 CDP，兼容 chromium/google-chrome）。"""
     return """[program:chromium]
 environment=HOME="/home/%(ENV_USER)s",USER="%(ENV_USER)s",DISPLAY="%(ENV_DISPLAY)s"
-command=/usr/bin/chromium-unlock /usr/bin/chromium
-  --no-sandbox
-  --window-position=0,0
-  --display=%(ENV_DISPLAY)s
-  --user-data-dir=/home/neko/.config/chromium
-  --no-first-run
-  --no-default-browser-check
-  --start-maximized
-  --disable-gpu
-  --disable-software-rasterizer
-  --disable-dev-shm-usage
-  --remote-debugging-port=9222
-  --remote-debugging-address=0.0.0.0
+command=/bin/sh -c 'rm -f /home/neko/.config/chromium/SingletonLock /home/neko/.config/chromium/SingletonSocket /home/neko/.config/chromium/SingletonCookie && exec "$(command -v chromium || command -v google-chrome || command -v chromium-browser)" --no-sandbox --window-position=0,0 --display=%(ENV_DISPLAY)s --user-data-dir=/home/neko/.config/chromium --no-first-run --no-default-browser-check --start-maximized --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0'
 stopsignal=INT
 autorestart=true
 priority=800
@@ -261,6 +249,7 @@ def render_docker_compose(cfg: NekoConfig) -> str:
     """生成受管 docker-compose.yaml（CDP 仅绑定 127.0.0.1，WebRTC 使用单端口 TCP+UDP MUX）。"""
     env_lines = [
         f'      NEKO_DESKTOP_SCREEN: "{cfg.screen}"',
+        '      NEKO_SERVER_PROXY: "true"',
         '      NEKO_WEBRTC_ICELITE: "true"',
         f"      NEKO_WEBRTC_UDPMUX: {cfg.mux_port}",
         f"      NEKO_WEBRTC_TCPMUX: {cfg.mux_port}",
@@ -268,6 +257,11 @@ def render_docker_compose(cfg: NekoConfig) -> str:
     if cfg.nat_ip:
         env_lines.append(f'      NEKO_WEBRTC_NAT1TO1: "{cfg.nat_ip}"')
 
+    sup_target = (
+        "/etc/neko/supervisord/google-chrome.conf"
+        if "google-chrome" in cfg.image.lower()
+        else "/etc/neko/supervisord/chromium.conf"
+    )
     env_block = "\n".join(env_lines)
     return f"""# Managed by Tentacle browser_neko.py
 services:
@@ -285,7 +279,7 @@ services:
       - "{cfg.mux_port}:{cfg.mux_port}/tcp"
     volumes:
       - "./profile:/home/neko/.config/chromium"
-      - "./chromium.conf:/etc/neko/supervisord/chromium.conf:ro"
+      - "./chromium.conf:{sup_target}:ro"
     environment:
 {env_block}
 """
@@ -296,25 +290,24 @@ def render_reverse_proxy_examples(cfg: NekoConfig) -> str:
     upstream = f"127.0.0.1:{cfg.http_port}"
     return f"""# Tentacle 可视化浏览器（Neko）HTTPS 反代参考配置
 # 说明：
-# 1. Neko 网页/信令默认监听 {cfg.bind}:{cfg.http_port}
+# 1. Neko 网页/信令默认监听 {cfg.bind}:{cfg.http_port}（Neko v3 前端走根路径，请使用独立子域名或独立端口，勿挂 /neko/ 子路径）
 # 2. WebRTC 媒体通道使用单端口 TCP+UDP MUX：{cfg.mux_port}（需在云服务器安全组/防火墙放行 {cfg.mux_port}/udp 与 {cfg.mux_port}/tcp）
 # 3. CDP 调试端口仅绑定 127.0.0.1:{cfg.cdp_port}，请勿对外反向代理该端口！
 
-# ---------- 方式 1：Nginx 子路径反代（例如 https://your-domain/neko/） ----------
-# location /neko/ {{
-#     proxy_pass http://{upstream}/;
-#     proxy_http_version 1.1;
-#     proxy_set_header Upgrade $http_upgrade;
-#     proxy_set_header Connection "upgrade";
-#     proxy_set_header Host $host;
-#     proxy_set_header X-Real-IP $remote_addr;
-#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#     proxy_set_header X-Forwarded-Proto $scheme;
-#     proxy_read_timeout 3600s;
-#     proxy_send_timeout 3600s;
+# ---------- 方式 1：Caddy（推荐最简；独立子域名或复用域名+:8443） ----------
+# browser.your-domain {{
+#     reverse_proxy {upstream}
+# }}
+# 或免改 DNS：
+# your-domain:8443 {{
+#     reverse_proxy {upstream}
 # }}
 
-# ---------- 方式 2：Nginx 独立子域名反代（推荐，例如 https://browser.your-domain/） ----------
+# ---------- 方式 2：Tailscale Serve（私网自动 HTTPS，无需公网端口与域名） ----------
+# sudo tailscale serve --bg --https=8443 http://{upstream}
+# 配合在 WebUI /plugins 将 neko_nat_ip 填为该主机的 Tailscale IP（如 100.x.y.z）
+
+# ---------- 方式 3：Nginx 独立子域名反代（例如 https://browser.your-domain） ----------
 # server {{
 #     listen 443 ssl http2;
 #     server_name browser.your-domain;
@@ -329,17 +322,10 @@ def render_reverse_proxy_examples(cfg: NekoConfig) -> str:
 #         proxy_set_header X-Real-IP $remote_addr;
 #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 #         proxy_set_header X-Forwarded-Proto $scheme;
-#         proxy_read_timeout 3600s;
+#         proxy_read_timeout 86400s;
+#         proxy_send_timeout 86400s;
 #     }}
 # }}
-
-# ---------- 方式 3：Caddy（推荐最简） ----------
-# browser.your-domain {{
-#     reverse_proxy {upstream}
-# }}
-
-# ---------- 方式 4：Tailscale Serve（私网自动 HTTPS，无需域名） ----------
-# sudo tailscale serve --bg --https=8443 http://{upstream}
 """
 
 
@@ -459,7 +445,17 @@ def discover_tentacle_config_path(explicit: str | None = None) -> Path | None:
     env_home = os.environ.get("TENTACLE_HOME", "").strip()
     if env_home:
         candidates.append(Path(env_home).expanduser() / "config" / "config.yaml")
+    update_json = Path("/etc/tentacle/update.json")
+    if update_json.is_file():
+        try:
+            host_cfg = json.loads(update_json.read_text(encoding="utf-8"))
+            home_dir = str(host_cfg.get("home") or "").strip() if isinstance(host_cfg, dict) else ""
+            if home_dir:
+                candidates.append(Path(home_dir) / "config" / "config.yaml")
+        except (OSError, ValueError):
+            pass
     candidates.extend([
+        Path("/home/tentacle/config/config.yaml"),
         Path("/var/lib/tentacle/config/config.yaml"),
         Path.home() / ".tentacle" / "config" / "config.yaml",
     ])

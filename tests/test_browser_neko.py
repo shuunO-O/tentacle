@@ -57,6 +57,8 @@ def test_browser_neko_validators_and_renderers():
     assert "--remote-debugging-address=0.0.0.0" in sup
     assert "--user-data-dir=/home/neko/.config/chromium" in sup
     assert "--bwsi" not in sup
+    assert "chromium-unlock" not in sup
+    assert "SingletonLock" in sup
 
     cfg = browser_neko.NekoConfig(
         install_dir="/var/lib/tentacle-browser",
@@ -74,6 +76,7 @@ def test_browser_neko_validators_and_renderers():
     assert '"127.0.0.1:9222:9222"' in compose
     assert '"52000:52000/udp"' in compose
     assert '"52000:52000/tcp"' in compose
+    assert 'NEKO_SERVER_PROXY: "true"' in compose
     assert "NEKO_WEBRTC_UDPMUX: 52000" in compose
     assert "NEKO_WEBRTC_TCPMUX: 52000" in compose
     assert 'NEKO_WEBRTC_NAT1TO1: "203.0.113.10"' in compose
