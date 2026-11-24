@@ -24,8 +24,6 @@ from functools import partial
 from pathlib import Path
 from typing import Awaitable, Callable
 
-from google.auth.exceptions import DefaultCredentialsError
-
 from agent.loop import AgentLoop, resolve_model_tools
 from runtime.timezone import local_datetime
 from agent.chronicle import ChronicleManager
@@ -99,7 +97,7 @@ class AgentSession:
         self._system_prompt = self._load_system_prompt()
         try:
             self._loop = self._create_loop()
-        except (CredentialConfigurationError, DefaultCredentialsError):
+        except CredentialConfigurationError:
             self._loop = None
             logger.warning(CHAT_NOT_READY)
         self._lock = asyncio.Lock()

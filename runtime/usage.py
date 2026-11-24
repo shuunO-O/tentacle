@@ -25,9 +25,22 @@ from datetime import date, timedelta
 from runtime.timezone import day_boundaries, local_datetime
 from pathlib import Path
 
-import aiohttp
-
 logger = logging.getLogger(__name__)
+
+
+def _aiohttp():
+    mod = globals().get("aiohttp")
+    if mod is None:
+        import aiohttp as mod
+
+        globals()["aiohttp"] = mod
+    return mod
+
+
+def __getattr__(name: str):
+    if name == "aiohttp":
+        return _aiohttp()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # 余额查询缓存时长（秒）
@@ -459,6 +472,7 @@ class UsageTracker:
             if time.time() - self._balance_cache_time < BALANCE_CACHE_SECONDS:
                 return self._balance_cache
 
+        aiohttp = _aiohttp()
         try:
             async with aiohttp.ClientSession(
                 trust_env=getattr(self, "_balance_proxy", None) is None,

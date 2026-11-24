@@ -18,11 +18,28 @@ import sys
 import tempfile
 from urllib.parse import parse_qs, urlsplit
 
-import aiohttp
-from yarl import URL
-
 from attachments.downloads import HttpJobsDownloader, download_settings
 from attachments.inputs import attachment_kind
+
+
+def _aiohttp():
+    mod = globals().get("aiohttp")
+    if mod is None:
+        import aiohttp as mod
+
+        globals()["aiohttp"] = mod
+    return mod
+
+
+def __getattr__(name: str):
+    if name == "aiohttp":
+        return _aiohttp()
+    if name == "URL":
+        from yarl import URL
+
+        globals()["URL"] = URL
+        return URL
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 MAX_MEDIA_BYTES = 64 * 1024 * 1024
 MAX_MEDIA_SECONDS = 600
@@ -170,6 +187,9 @@ def validate_bilibili_url(url):
 
 
 async def canonical_bilibili_url(url):
+    from yarl import URL
+
+    aiohttp = _aiohttp()
     # Resolve short links ourselves, validating every hop before requesting it.
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20), trust_env=False) as session:
         for _ in range(5):

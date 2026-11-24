@@ -8,8 +8,6 @@ import shutil
 import stat
 import tempfile
 
-import ladybug
-
 from config.files import ConfigFiles
 from memory.embeddings import EmbeddingClient
 from memory.ladybug_driver import LABELS, RELATIONS, LadybugDriver, offload
@@ -38,6 +36,8 @@ def check_output(path):
 
 
 def check_snapshot(database):
+    import ladybug
+
     required = {*VECTOR_TEXT, *RELATIONS, "HAS_SOURCE", "MemoryMeta", "ConceptGroupAudit"}
     with ladybug.Connection(database) as connection:
         result = connection.execute("CALL SHOW_TABLES() RETURN name")
@@ -159,6 +159,8 @@ async def rebuild_vectors(source, output, client, *, check_before_publish=None):
     output.parent.mkdir(parents=True, exist_ok=True)
     lock = replacement_lock(source) if in_place else nullcontext()
     with lock, tempfile.TemporaryDirectory(prefix=".reembed-", dir=output.parent) as temporary:
+        import ladybug
+
         staging = Path(temporary) / "memory.lbdb"
         with ladybug.Database(source, read_only=True) as snapshot:
             if sidecars_exist(source):

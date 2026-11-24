@@ -1,35 +1,75 @@
-"""独立 Google 连接的身份加载，不访问真实凭据或网络。"""
+"""Google 服务账号 JSON 凭据加载与 httpx 令牌刷新，不访问真实凭据或网络。"""
+import os
 from unittest.mock import Mock
 
+import httpx
 import pytest
 
-from config.google_auth import load_credentials
+from config.google_auth import SCOPES, load_credentials, make_refresh_request
 from dialects.gemini import GeminiClient
 
 
-def test_explicit_identity_does_not_use_or_modify_adc(monkeypatch):
+def test_explicit_identity_uses_service_account_json_without_modifying_default_env(monkeypatch):
     monkeypatch.setenv("SYNTHETIC_VERTEX_KEY", "/synthetic/new.json")
     monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/synthetic/old.json")
     credentials = Mock()
-    loader = Mock(return_value=(credentials, "ignored"))
-    monkeypatch.setattr("google.auth.load_credentials_from_file", loader)
-    monkeypatch.setattr("google.auth.default", Mock(side_effect=AssertionError("ADC used")))
+    loader = Mock(return_value=credentials)
+    monkeypatch.setattr("google.oauth2.service_account.Credentials.from_service_account_file", loader)
+    monkeypatch.setattr("google.auth.default", Mock(side_effect=AssertionError("implicit ADC must not be used")))
     assert load_credentials("SYNTHETIC_VERTEX_KEY", "new-project") is credentials
-    assert loader.call_args.args == ("/synthetic/new.json",)
-    assert loader.call_args.kwargs["quota_project_id"] == "new-project"
-    import os
+    loader.assert_called_once_with("/synthetic/new.json", scopes=SCOPES, quota_project_id="new-project")
     assert os.environ["GOOGLE_APPLICATION_CREDENTIALS"] == "/synthetic/old.json"
 
 
-def test_explicit_missing_or_invalid_identity_never_falls_back(monkeypatch):
+def test_default_identity_uses_google_application_credentials_json_never_implicit_adc(monkeypatch):
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/synthetic/default.json")
+    credentials = Mock()
+    loader = Mock(return_value=credentials)
+    monkeypatch.setattr("google.oauth2.service_account.Credentials.from_service_account_file", loader)
+    monkeypatch.setattr("google.auth.default", Mock(side_effect=AssertionError("implicit ADC must not be used")))
+    assert load_credentials(project="default-project") is credentials
+    loader.assert_called_once_with("/synthetic/default.json", scopes=SCOPES, quota_project_id="default-project")
+
+
+def test_missing_or_invalid_identity_never_falls_back_or_echoes_secret(monkeypatch):
     monkeypatch.delenv("SYNTHETIC_VERTEX_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    monkeypatch.setattr("google.auth.default", Mock(side_effect=AssertionError("implicit ADC must not be used")))
+    with pytest.raises(ValueError, match="未设置"):
+        load_credentials()
     with pytest.raises(ValueError, match="未设置"):
         load_credentials("SYNTHETIC_VERTEX_KEY")
     monkeypatch.setenv("SYNTHETIC_VERTEX_KEY", "/synthetic/new.json")
-    monkeypatch.setattr("google.auth.load_credentials_from_file", Mock(side_effect=ValueError("secret")))
+    monkeypatch.setattr(
+        "google.oauth2.service_account.Credentials.from_service_account_file",
+        Mock(side_effect=ValueError("secret-private-key")),
+    )
     with pytest.raises(ValueError) as exc:
         load_credentials("SYNTHETIC_VERTEX_KEY")
-    assert "secret" not in str(exc.value)
+    assert "secret-private-key" not in str(exc.value)
+
+
+def test_httpx_refresh_request_maps_response_and_wraps_transport_errors():
+    from google.auth.exceptions import TransportError
+
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append((req.method, str(req.url), req.content, dict(req.headers)))
+        if req.url.path == "/fail":
+            raise httpx.ConnectError("network down", request=req)
+        return httpx.Response(200, json={"access_token": "tok", "expires_in": 3600})
+
+    with make_refresh_request(proxy="", timeout=15.0, transport=httpx.MockTransport(handler)) as refresh_req:
+        resp = refresh_req("https://oauth2.example/token", method="POST", body=b"grant_type=urn", headers={"x-test": "1"})
+        assert resp.status == 200
+        assert resp.headers["content-type"] == "application/json"
+        assert b"access_token" in resp.data
+        assert seen[0][:3] == ("POST", "https://oauth2.example/token", b"grant_type=urn")
+        assert seen[0][3]["x-test"] == "1"
+
+        with pytest.raises(TransportError):
+            refresh_req("https://oauth2.example/fail", method="POST", body=b"x")
 
 
 async def test_vertex_client_uses_connection_identity(monkeypatch):

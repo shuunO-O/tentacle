@@ -14,9 +14,22 @@ import re
 from urllib.parse import urlsplit
 import uuid
 
-import aiohttp
-
 logger = logging.getLogger(__name__)
+
+
+def _aiohttp():
+    mod = globals().get("aiohttp")
+    if mod is None:
+        import aiohttp as mod
+
+        globals()["aiohttp"] = mod
+    return mod
+
+
+def __getattr__(name: str):
+    if name == "aiohttp":
+        return _aiohttp()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 MAX_BYTES = 64 * 1024 * 1024
 MAX_JSON = 64 * 1024
 _JOB_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
@@ -178,6 +191,7 @@ class HttpJobsDownloader:
         self.base = _endpoint(settings.base_url)
 
     async def _request(self, session, method, path, *, expected=(200,), **kwargs):
+        aiohttp = _aiohttp()
         timeout = aiohttp.ClientTimeout(total=10, connect=5, sock_connect=5)
         async with session.request(
             method,
@@ -201,6 +215,7 @@ class HttpJobsDownloader:
             return value
 
     async def _transfer(self, session, job_id, media, destination):
+        aiohttp = _aiohttp()
         partial = destination.with_suffix(".part")
         timeout = aiohttp.ClientTimeout(total=160, connect=5, sock_connect=5, sock_read=10)
         try:
@@ -254,6 +269,7 @@ class HttpJobsDownloader:
                 raise MediaDownloadError("远程视频认证环境变量未配置或格式无效")
             headers["Authorization"] = "Bearer " + token
         job_id = None
+        aiohttp = _aiohttp()
         async with aiohttp.ClientSession(trust_env=False, auto_decompress=False, headers=headers) as session:
             try:
                 try:

@@ -8,8 +8,6 @@ from urllib.parse import urlsplit
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
-from websockets.asyncio.client import connect
-from websockets.exceptions import WebSocketException
 
 from subagents.dsh import DshError
 from web.schemas import DshAccessResponse
@@ -166,6 +164,9 @@ def coding_router(manager, auth_dep, settings, device_ok):
         if not authorized(socket):
             await socket.close(4401)
             return
+        from websockets.asyncio.client import connect
+        from websockets.exceptions import WebSocketException
+
         revision = settings.auth_revision
 
         async def to_host(upstream):

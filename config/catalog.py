@@ -18,26 +18,15 @@ def _text(value, limit=512):
 
 
 def _adc_headers(provider):
-    """仅由显式读取操作在线刷新 ADC，代理策略与应用连接一致。"""
-    from config.google_auth import load_credentials
-    from google.auth.transport.requests import Request
-    import requests
+    """仅由显式读取操作在线刷新服务账号令牌，代理策略与应用连接一致。"""
+    from config.google_auth import load_credentials, make_refresh_request
 
     project = provider.get("project") or os.getenv(provider.get("project_env", "GOOGLE_CLOUD_PROJECT"), "")
     if not project:
         raise ConfigurationError("请先设置此连接的 Google Cloud 项目")
     credentials = load_credentials(provider.get("credentials_env", ""), project)
-    with requests.Session() as session:
-        proxy = provider.get("proxy")
-        session.trust_env = proxy is None
-        if proxy:
-            session.proxies.update(http=proxy, https=proxy)
-        request = Request(session=session)
-
-        def bounded_request(*args, **kwargs):
-            return request(*args, **{**kwargs, "timeout": 10})
-
-        credentials.refresh(bounded_request)
+    with make_refresh_request(provider.get("proxy"), timeout=10.0) as request:
+        credentials.refresh(request)
     headers = {"x-goog-user-project": project}
     credentials.apply(headers)
     return headers

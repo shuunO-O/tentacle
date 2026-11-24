@@ -75,13 +75,14 @@ class EventEvidenceStore:
             content = await self._evidence_query(f"""/* evidence:source */ MATCH (e:Event)-[:HAS_SOURCE]->(s:EventSource)
                 WHERE {where} AND s.embedding_model=$model AND s.embedding_dim=$dimensions
                 WITH e,s,{self._similarity('s.embedding')} AS score WHERE score IS NOT NULL
-                WITH e,list_reduce(collect({{score:score,start:s.start,id:s.id,`end`:s.`end`,text:s.text}}),
+                WITH e,list_reduce(collect({{score:score,start:s.start,id:s.id,`end`:s.`end`}}),
                     (a,b) -> CASE WHEN b.score>a.score OR (b.score=a.score AND
                         (b.start<a.start OR (b.start=a.start AND b.id<a.id))) THEN b ELSE a END) AS best
                 WITH e,best ORDER BY best.score DESC,e.id LIMIT $candidates
+                MATCH (matched:EventSource {{id:best.id}})
                 OPTIONAL MATCH (e)-[:HAS_SOURCE]->(h:EventSource)
                 RETURN {fields},best.score AS score,
-                    {{start:best.start,`end`:best.`end`,text:best.text}} AS matched_source
+                    {{start:best.start,`end`:best.`end`,text:matched.text}} AS matched_source
                 ORDER BY score DESC,e.id""",
                 **params, model=model, dimensions=dimensions)
             for route in (summary, content):

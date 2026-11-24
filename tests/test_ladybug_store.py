@@ -431,3 +431,29 @@ async def test_native_entity_filter_keeps_non_mentions_concept_relationships(sto
     assert [e["id"] for e in found] == [event_id]
     found = await store.search("问题", "Event", "概念")
     assert found["primary_match"]["node"]["id"] == event_id
+
+
+async def test_driver_reuses_clean_connections_and_discards_errored_ones(store):
+    driver = store.driver
+    async with driver.session() as first:
+        first_conn = first.connection
+        await first.run("RETURN 1 AS ok")
+    assert len(driver._idle_connections) == 1
+    assert driver._idle_connections[0] is first_conn
+
+    async with driver.session() as second:
+        assert second.connection is first_conn
+        await second.run("RETURN 2 AS ok")
+    assert len(driver._idle_connections) == 1
+
+    with pytest.raises(RuntimeError):
+        async with driver.session() as broken:
+            assert broken.connection is first_conn
+            await broken.run("INVALID CYPHER SYNTAX")
+    assert not driver._idle_connections
+
+    async with driver.session() as fresh:
+        assert fresh.connection is not first_conn
+        rows = [row async for row in await fresh.run("RETURN 3 AS ok")]
+        assert rows == [{"ok": 3}]
+

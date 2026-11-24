@@ -340,10 +340,13 @@ class GeminiContextCache:
 
     @staticmethod
     def _reference(body, entry):
-        result = copy.deepcopy(body)
-        result['contents'] = result.get('contents', [])[entry['count']:]
-        for key in PREFIX_FIELDS:
-            result.pop(key, None)
+        # 仅拷贝未命中缓存的尾部消息与其他顶层字段，避免对整段已缓存前缀做 deepcopy。
+        result = {
+            key: copy.deepcopy(value)
+            for key, value in body.items()
+            if key != 'contents' and key not in PREFIX_FIELDS
+        }
+        result['contents'] = copy.deepcopy(body.get('contents', [])[entry['count']:])
         result['cachedContent'] = entry['name']
         return result
 

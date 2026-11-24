@@ -1,6 +1,8 @@
 """模块归组后，数据/附件/提示词路径与共享单例仍指向同一项目；不读取运行内容。"""
 
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -70,3 +72,40 @@ def test_module_moves_preserve_persisted_media_setting_keys():
     fields = fields_for({"providers": {}, "models": {}, "roles": {}})
     assert {"media_inputs.auto_bilibili", "media_inputs.download.backend", "media_inputs.download.base_url"} <= fields.keys()
     assert not any(key.startswith("attachments.") for key in fields)
+
+
+def test_startup_imports_defer_optional_heavy_dependencies():
+    probe = (
+        "import importlib, json, pathlib, sys, types\n"
+        "if sys.platform == 'win32':\n"
+        "    for m in ('pty', 'termios', 'fcntl'):\n"
+        "        sys.modules.setdefault(m, types.ModuleType(m))\n"
+        "import run_web\n"
+        "for p in sorted(pathlib.Path('tools').glob('*.py')):\n"
+        "    if p.stem != '__init__':\n"
+        "        importlib.import_module(f'tools.{p.stem}')\n"
+        "loaded = sorted({name.split('.')[0] for name in sys.modules})\n"
+        "print(json.dumps(loaded))\n"
+    )
+    root = Path(__file__).resolve().parents[1]
+    out = subprocess.check_output([sys.executable, "-c", probe], cwd=root, text=True)
+    import json
+
+    loaded = set(json.loads(out))
+    deferred = {
+        "aiohttp",
+        "croniter",
+        "cryptography",
+        "dateutil",
+        "google",
+        "httpx2",
+        "ladybug",
+        "mcp",
+        "openai",
+        "requests",
+        "urllib3",
+        "websockets",
+        "yarl",
+    }
+    assert not (loaded & deferred), f"启动导入提前加载了按需依赖: {sorted(loaded & deferred)}"
+

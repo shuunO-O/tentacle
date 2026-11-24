@@ -800,3 +800,30 @@ async def test_idle_cleanup_failure_does_not_block_full_request(setup_cache, cfg
     monkeypatch.setattr(cache, '_save', Mock(side_effect=OSError('synthetic disk failure')))
     original, used = await cache.prepare(body, cfg, 'a')
     assert original == body and not used
+
+
+def test_reference_does_not_deepcopy_cached_prefix_or_prefix_fields():
+    class NoDeepCopy:
+        def __deepcopy__(self, memo):
+            raise AssertionError('cached prefix should not be deep-copied')
+
+    tail_msg = {'role': 'user', 'parts': [{'text': 'new turn'}]}
+    gen_cfg = {'temperature': 0.7}
+    body = {
+        'systemInstruction': NoDeepCopy(),
+        'tools': NoDeepCopy(),
+        'toolConfig': NoDeepCopy(),
+        'contents': [NoDeepCopy(), NoDeepCopy(), tail_msg],
+        'generationConfig': gen_cfg,
+    }
+    referenced = GeminiContextCache._reference(body, {'name': 'cachedContents/1', 'count': 2})
+    assert referenced == {
+        'generationConfig': {'temperature': 0.7},
+        'contents': [{'role': 'user', 'parts': [{'text': 'new turn'}]}],
+        'cachedContent': 'cachedContents/1',
+    }
+    referenced['contents'][0]['parts'][0]['text'] = 'mutated'
+    referenced['generationConfig']['temperature'] = 0.0
+    assert tail_msg['parts'][0]['text'] == 'new turn'
+    assert gen_cfg['temperature'] == 0.7
+

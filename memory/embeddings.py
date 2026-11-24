@@ -8,11 +8,23 @@
 import logging
 import math
 
-from openai import AsyncOpenAI, DefaultAsyncHttpxClient
-
 from config.manager import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+def _load_openai() -> None:
+    from openai import AsyncOpenAI as _AsyncOpenAI, DefaultAsyncHttpxClient as _DefaultAsyncHttpxClient
+
+    globals().setdefault("AsyncOpenAI", _AsyncOpenAI)
+    globals().setdefault("DefaultAsyncHttpxClient", _DefaultAsyncHttpxClient)
+
+
+def __getattr__(name: str):
+    if name in ("AsyncOpenAI", "DefaultAsyncHttpxClient"):
+        _load_openai()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # qwen3.7-text-embedding 单次最多 20 条
 _BATCH_SIZE = 20
@@ -42,12 +54,16 @@ class EmbeddingClient:
 
         self.model_name = model.name
         self.dimensions = emb_cfg.get("dimensions", 1024)
+        if "AsyncOpenAI" not in globals() or (
+            model.proxy is not None and "DefaultAsyncHttpxClient" not in globals()
+        ):
+            _load_openai()
         client_options = {}
         if model.proxy is not None:
-            client_options["http_client"] = DefaultAsyncHttpxClient(
+            client_options["http_client"] = globals()["DefaultAsyncHttpxClient"](
                 proxy=model.proxy or None, trust_env=False,
             )
-        self.client = AsyncOpenAI(api_key=model.api_key, base_url=model.base_url, **client_options)
+        self.client = globals()["AsyncOpenAI"](api_key=model.api_key, base_url=model.base_url, **client_options)
         self._initialized = True
 
         logger.info(f"EmbeddingClient 初始化完成: {self.model_name}, dim={self.dimensions}")

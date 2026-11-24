@@ -82,7 +82,7 @@ class ModelConfig:
     auth: str = "api_key"
     project: Optional[str] = None
     location: str = "global"
-    credentials_env: str = ""  # 环境变量保存凭据文件路径；空值继承 ADC
+    credentials_env: str = ""  # 环境变量保存服务账号 JSON 路径；空值使用 GOOGLE_APPLICATION_CREDENTIALS
     gcs_base_url: str = ""  # 此 Vertex 连接的私有 bucket/prefix
     max_retries: int = 3
     retry_base_seconds: float = 1.0

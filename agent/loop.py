@@ -25,8 +25,6 @@ from contextvars import ContextVar
 from dataclasses import replace
 from typing import Callable
 
-from openai import AsyncOpenAI, DefaultAsyncHttpxClient
-
 from dialects import get_dialect, message_to_dict
 from plugins.hooks import hook_bus
 from dialects.gemini import GeminiClient
@@ -81,6 +79,20 @@ def check_stop(context):
         raise RoundInterrupted
 
 
+def _load_openai() -> None:
+    from openai import AsyncOpenAI as _AsyncOpenAI, DefaultAsyncHttpxClient as _DefaultAsyncHttpxClient
+
+    globals().setdefault("AsyncOpenAI", _AsyncOpenAI)
+    globals().setdefault("DefaultAsyncHttpxClient", _DefaultAsyncHttpxClient)
+
+
+def __getattr__(name: str):
+    if name in ("AsyncOpenAI", "DefaultAsyncHttpxClient"):
+        _load_openai()
+        return globals()[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 class AgentLoop:
     """
     Agent 主循环
@@ -103,13 +115,20 @@ class AgentLoop:
         self.tool_definitions = tool_definitions
         self.checkpoint = checkpoint
         is_gemini = model_config.api_style in ("interactions", "gemini_generate")
-        client_class = GeminiClient if is_gemini else AsyncOpenAI
+        if is_gemini:
+            client_class = GeminiClient
+        else:
+            if "AsyncOpenAI" not in globals() or (
+                model_config.proxy is not None and "DefaultAsyncHttpxClient" not in globals()
+            ):
+                _load_openai()
+            client_class = globals()["AsyncOpenAI"]
         client_options = {}
         if model_config.proxy is not None:
             if is_gemini:
                 client_options["proxy"] = model_config.proxy
             else:
-                client_options["http_client"] = DefaultAsyncHttpxClient(
+                client_options["http_client"] = globals()["DefaultAsyncHttpxClient"](
                     proxy=model_config.proxy or None, trust_env=False,
                 )
         self.client = client_class(

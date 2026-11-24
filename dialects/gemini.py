@@ -15,14 +15,6 @@ import time
 from urllib.parse import urlparse
 
 import httpx
-import requests
-
-try:
-    import google.auth
-    from google.auth.transport.requests import Request as GoogleAuthRequest
-except ImportError:  # Report a targeted error only when ADC is selected.
-    google = None
-    GoogleAuthRequest = None
 
 from dialects.base import AdapterResult, DialectAdapter, NormalizedUsage, message_to_dict
 from agent.protocol import Event, EventType
@@ -95,22 +87,16 @@ class GeminiClient(httpx.AsyncClient):
                  credentials=None, credentials_env='', **kwargs):
         headers = {'Api-Revision': '2026-05-20'}
         auth = None
-        self._refresh_session = None
+        self._refresh_request = None
         self.context_cache = None
         if auth_mode == 'adc':
-            if google is None:
-                raise RuntimeError('Google ADC 需要安装 google-auth（pip install -r requirements.txt）')
             if not project:
                 raise ValueError('Google Cloud Interactions 需要 project')
+            from config.google_auth import load_credentials, make_refresh_request
             if credentials is None:
-                from config.google_auth import load_credentials
                 credentials = load_credentials(credentials_env, project)
-            refresh_session = requests.Session()
-            refresh_session.trust_env = proxy is None
-            if proxy:
-                refresh_session.proxies.update({'http': proxy, 'https': proxy})
-            self._refresh_session = refresh_session
-            auth = _GoogleADCAuth(credentials, GoogleAuthRequest(session=refresh_session))
+            self._refresh_request = make_refresh_request(proxy)
+            auth = _GoogleADCAuth(credentials, self._refresh_request)
             base_url = (base_url.rstrip('/') + f'/projects/{project}/locations/{location}/')
         else:
             headers['x-goog-api-key'] = api_key
@@ -127,8 +113,8 @@ class GeminiClient(httpx.AsyncClient):
         if self.context_cache is not None:
             await self.context_cache.clear()
         await super().aclose()
-        if self._refresh_session is not None:
-            self._refresh_session.close()
+        if self._refresh_request is not None:
+            self._refresh_request.close()
 
 
 def _text(parts):

@@ -9,15 +9,13 @@ from dataclasses import dataclass, field
 import json
 import logging
 import os
-from typing import Any, Callable
-
-import httpx2
-from mcp import ClientSession, types
-from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import streamable_http_client
+from typing import TYPE_CHECKING, Any, Callable
 
 from plugins.manifest import ENV_NAME_RE, PLUGIN_ID_RE
 from plugins.permissions import PluginManifestError
+
+if TYPE_CHECKING:
+    from mcp import ClientSession, types
 
 
 logger = logging.getLogger(__name__)
@@ -303,6 +301,8 @@ class MCPConnection:
         return list(self._tools)
 
     async def _worker(self, ready: asyncio.Event, stop_event: asyncio.Event) -> None:
+        from mcp import ClientSession
+
         async with AsyncExitStack() as stack:
             try:
                 if self._transport_factory is not None:
@@ -310,6 +310,8 @@ class MCPConnection:
                         self._transport_factory(self.config, self._extra_env, self._extra_headers)
                     )
                 elif self.config.transport == "stdio":
+                    from mcp.client.stdio import StdioServerParameters, stdio_client
+
                     err_stream = stack.enter_context(open(os.devnull, "w", encoding="utf-8"))
                     params = StdioServerParameters(
                         command=self.config.command,
@@ -321,6 +323,9 @@ class MCPConnection:
                         stdio_client(params, errlog=err_stream)
                     )
                 else:
+                    import httpx2
+                    from mcp.client.streamable_http import streamable_http_client
+
                     client = httpx2.AsyncClient(
                         headers=self._extra_headers or None,
                         timeout=self.config.timeout_seconds,

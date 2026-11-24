@@ -13,19 +13,69 @@ DialectAdapter 子类负责「内部规范格式 <-> 各家 API 方言」的双�
 边界：方言层不执行工具、不累计 usage、不维护会话状态。
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
-from typing import Callable
-
-from openai.types.chat import ChatCompletionMessage
-from openai.types.chat.chat_completion_message_tool_call import (
-    ChatCompletionMessageToolCall,
-    Function,
-)
+from typing import TYPE_CHECKING, Callable
 
 from agent.protocol import Context, ModelConfig
 
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessage
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CanonicalFunction:
+    """内部规范格式的工具调用函数定义（兼容 OpenAI Function.model_dump）。"""
+
+    name: str
+    arguments: str
+
+    def model_dump(self) -> dict:
+        return {"arguments": self.arguments, "name": self.name}
+
+
+@dataclass
+class CanonicalToolCall:
+    """内部规范格式的工具调用条目（兼容 ChatCompletionMessageToolCall.model_dump）。"""
+
+    id: str
+    function: CanonicalFunction
+    type: str = "function"
+
+    def model_dump(self) -> dict:
+        return {
+            "id": self.id,
+            "function": self.function.model_dump(),
+            "type": self.type,
+        }
+
+
+@dataclass
+class CanonicalMessage:
+    """轻量内部助手消息容器，避免非 OpenAI 方言为构建消息而加载完整 openai SDK。"""
+
+    role: str = "assistant"
+    content: str | None = None
+    tool_calls: list[CanonicalToolCall] | None = None
+
+    def model_dump(self) -> dict:
+        return {
+            "content": self.content,
+            "refusal": None,
+            "role": self.role,
+            "annotations": None,
+            "audio": None,
+            "function_call": None,
+            "tool_calls": (
+                [tc.model_dump() for tc in self.tool_calls]
+                if self.tool_calls is not None
+                else None
+            ),
+        }
 
 
 @dataclass
@@ -64,7 +114,7 @@ class AdapterResult:
                供多轮回传）；chat 方言恒为空列表
         response_model: 服务端返回的模型标识；未提供时为空，不使用请求配置补填
     """
-    message: ChatCompletionMessage
+    message: CanonicalMessage | ChatCompletionMessage
     usage: NormalizedUsage | None
     web_search_calls: list = field(default_factory=list)
     response_model: str = ""  # Server-reported model; never inferred from request config.
@@ -112,7 +162,7 @@ class DialectAdapter:
         content: str,
         reasoning_content: str,
         tool_calls_chunks: dict[int, dict],
-    ) -> ChatCompletionMessage:
+    ) -> CanonicalMessage:
         """
         根据收集的内容构建完整的 message 对象
 
@@ -122,29 +172,29 @@ class DialectAdapter:
             tool_calls_chunks: 收集的工具调用片段
 
         Returns:
-            ChatCompletionMessage 对象
+            CanonicalMessage 对象
         """
         tool_calls = None
         if tool_calls_chunks:
             tool_calls = []
             for idx in sorted(tool_calls_chunks.keys()):
                 chunk = tool_calls_chunks[idx]
-                tool_calls.append(ChatCompletionMessageToolCall(
+                tool_calls.append(CanonicalToolCall(
                     id=chunk["id"],
                     type="function",
-                    function=Function(
+                    function=CanonicalFunction(
                         name=chunk["function"]["name"],
                         arguments=chunk["function"]["arguments"],
                     ),
                 ))
 
-        message = ChatCompletionMessage(
+        message = CanonicalMessage(
             role="assistant",
             content=content or None,
             tool_calls=tool_calls,
         )
 
-        # ChatCompletionMessage 类型未声明 reasoning_content 字段，动态挂属性
+        # 动态挂载思考内容字段，保持与非流式 ChatCompletionMessage 一致的属性约定
         if reasoning_content:
             object.__setattr__(message, "reasoning_content", reasoning_content)
 
@@ -154,7 +204,7 @@ class DialectAdapter:
 # ==================== 模块级公共 helper ====================
 
 
-def message_to_dict(message: ChatCompletionMessage) -> dict:
+def message_to_dict(message: CanonicalMessage | ChatCompletionMessage) -> dict:
     """
     将 ChatCompletionMessage 转为 dict（追加进 full_messages）。
 

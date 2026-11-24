@@ -81,12 +81,7 @@ def make_local_image(tmp_path: Path, name: str = "l-1.png") -> Path:
 
 
 def test_missing_google_adc_leaves_default_gcs_unavailable(fm, monkeypatch):
-    from google.auth.exceptions import DefaultCredentialsError
-
-    def missing_adc():
-        raise DefaultCredentialsError("Synthetic credential details")
-
-    monkeypatch.setattr('config.google_auth.load_credentials', missing_adc)
+    monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
     fm.configure({"uploader": "gcs", "base_url": "gs://synthetic-bucket/images"})
 
     assert not fm.configured
@@ -444,9 +439,9 @@ async def test_vertex_gcs_refs_are_isolated_by_identity_and_bucket(fm, monkeypat
 
 
 async def test_scoped_ingress_needs_no_global_adc(fm, monkeypatch):
-    def no_global_adc(*args, **kwargs):
-        raise AssertionError('global ADC must not be loaded')
-    monkeypatch.setattr('google.auth.default', no_global_adc)
+    def no_global_creds(*args, **kwargs):
+        raise AssertionError('global credentials must not be loaded')
+    monkeypatch.setattr('config.google_auth.load_credentials', no_global_creds)
     fm.configure({'uploader': 'gcs', 'base_url': 'gs://synthetic-legacy/images', 'defer_uploads': True})
     image = await fm.upload_image(PNG_BYTES, 'local.png')
     assert image['file_id'] is None

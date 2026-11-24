@@ -65,6 +65,7 @@ Environment=HOME={home}
 Environment=TENTACLE_HOME={home}
 Environment=PYTHONNOUSERSITE=1
 Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=MALLOC_ARENA_MAX=2
 ExecStart={root}/current/.venv/bin/python {root}/current/run_web.py
 Restart=on-failure
 RestartSec=5

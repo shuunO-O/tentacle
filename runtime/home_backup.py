@@ -22,9 +22,6 @@ import tempfile
 import time
 import uuid
 
-from cryptography.exceptions import InvalidTag
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from dotenv.parser import parse_stream
 
 from attachments.outgoing import _SECRET_DIRS, _SECRET_NAMES
@@ -441,7 +438,10 @@ def collect_referenced_env_vars(effective_cfg: dict) -> list[str]:
         for item in providers.values():
             if isinstance(item, dict):
                 add(item.get("api_key_env"))
-                add(item.get("credentials_env"))
+                if item.get("type") == "google_vertex":
+                    add(item.get("credentials_env") or "GOOGLE_APPLICATION_CREDENTIALS")
+                else:
+                    add(item.get("credentials_env"))
                 add(item.get("project_env"))
 
     models = effective_cfg.get("models") or {}
@@ -668,12 +668,16 @@ def _sha256_file(path: Path) -> tuple[int, str]:
 
 
 def _derive_scrypt_key(passphrase: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+
     kdf = Scrypt(salt=salt, length=32, n=n, r=r, p=p)
     return kdf.derive(passphrase.encode("utf-8"))
 
 
 def encrypt_archive_file(src_tar_gz: Path, dst_enc: Path, passphrase: str) -> None:
     """使用 Scrypt + 分块 AES-256-GCM 流式加密备份归档，恒定低内存开销。"""
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     if len(passphrase) < MIN_PASSPHRASE_LENGTH:
         raise BackupError(f"加密口令至少需要 {MIN_PASSPHRASE_LENGTH} 个字符")
     salt = secrets.token_bytes(16)
@@ -722,6 +726,9 @@ def is_encrypted_archive(path: Path) -> bool:
 
 def decrypt_archive_file(src_enc: Path, dst_tar_gz: Path, passphrase: str) -> None:
     """流式解密并严格校验分块 AES-256-GCM 完整性与末尾终结标记。"""
+    from cryptography.exceptions import InvalidTag
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     if not passphrase:
         raise PassphraseRequiredError("此迁移包已加密，请输入导出时设置的解密口令")
     with src_enc.open("rb") as src:

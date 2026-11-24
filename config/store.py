@@ -106,7 +106,7 @@ def _model_template_fields():
         "project": f("", "Google Cloud 项目", "string", None, nullable=True),
         "project_env": f("", "项目环境变量名", "env", "GOOGLE_CLOUD_PROJECT"),
         "location": f("", "Google Cloud 区域", "string", "global"),
-        "credentials_env": f("", "凭据路径环境变量名", "env", "", help="变量值为主机上的 Google 凭据文件路径；留空使用 ADC。"),
+        "credentials_env": f("", "凭据路径环境变量名", "env", "", help="变量值为主机上的服务账号 JSON 凭据文件路径；留空使用 GOOGLE_APPLICATION_CREDENTIALS。"),
         "gcs_base_url": f("", "此连接的 GCS 地址", "string", "", help="gs://BUCKET/PREFIX；独立凭据留空时图片使用本地回退，不使用全局 bucket。"),
         "proxy": f("", "HTTP 代理", "proxy", None, nullable=True, help="空字符串直连；使用默认值则继承环境代理。"),
         "service_tier": f("", "消费层级", "string", None, choices=("standard", "priority", "flex"), nullable=True),

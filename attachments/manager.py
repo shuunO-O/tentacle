@@ -39,14 +39,26 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
-import aiohttp
-import requests
-from google.auth.exceptions import DefaultCredentialsError
-from google.auth.transport.requests import Request as GoogleAuthRequest
+from config.providers import CredentialConfigurationError
 
 from attachments.inputs import IMAGE_SUFFIXES, MEDIA_SUFFIXES, generic_mime, safe_filename
 
 logger = logging.getLogger(__name__)
+
+
+def _aiohttp():
+    mod = globals().get("aiohttp")
+    if mod is None:
+        import aiohttp as mod
+
+        globals()["aiohttp"] = mod
+    return mod
+
+
+def __getattr__(name: str):
+    if name == "aiohttp":
+        return _aiohttp()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 from runtime.paths import state_path
 
@@ -148,6 +160,7 @@ class DeepSeekFilesUploader(FileUploader):
             f"\r\n--{boundary}--\r\n".encode(),
         ])
 
+        aiohttp = _aiohttp()
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{self.base_url}/files",
@@ -168,6 +181,7 @@ class DeepSeekFilesUploader(FileUploader):
                 return file_id, float(expires_at)
 
     async def delete(self, file_id: str) -> None:
+        aiohttp = _aiohttp()
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.delete(
@@ -206,6 +220,7 @@ class GeminiFilesUploader(FileUploader):
             raise ValueError("Gemini 不支持 GIF 图片，请转换为 PNG/JPEG/WebP")
         from datetime import datetime
 
+        aiohttp = _aiohttp()
         async with aiohttp.ClientSession(
             headers={"x-goog-api-key": self.api_key},
             timeout=aiohttp.ClientTimeout(total=120), trust_env=self.proxy is None,
@@ -244,6 +259,7 @@ class GeminiFilesUploader(FileUploader):
         # Existing records may still carry IDs issued by a previous uploader.
         if not file_id.startswith(f"{self.base_url}/v1beta/files/"):
             return
+        aiohttp = _aiohttp()
         try:
             async with aiohttp.ClientSession(
                 headers={"x-goog-api-key": self.api_key},
@@ -276,12 +292,7 @@ class GCSFilesUploader(FileUploader):
         self.credentials = None
         self.credentials_env = credentials_env
         self.project = project
-        refresh_session = requests.Session()
-        refresh_session.trust_env = proxy is None
-        if proxy:
-            refresh_session.proxies.update({"http": proxy, "https": proxy})
-        self._refresh_session = refresh_session
-        self._refresh_request = GoogleAuthRequest(session=refresh_session)
+        self._refresh_request = None
         self._auth_lock = asyncio.Lock()
 
     async def _headers(self) -> dict[str, str]:
@@ -291,6 +302,9 @@ class GCSFilesUploader(FileUploader):
                 self.credentials = await asyncio.to_thread(
                     load_credentials, self.credentials_env, self.project)
             if not self.credentials.valid:
+                if self._refresh_request is None:
+                    from config.google_auth import make_refresh_request
+                    self._refresh_request = make_refresh_request(self.proxy)
                 await asyncio.to_thread(self.credentials.refresh, self._refresh_request)
             headers = {}
             self.credentials.apply(headers)
@@ -321,6 +335,7 @@ class GCSFilesUploader(FileUploader):
         )
         headers = await self._headers()
         headers["Content-Type"] = mime
+        aiohttp = _aiohttp()
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=120), trust_env=self.proxy is None,
         ) as session:
@@ -343,6 +358,7 @@ class GCSFilesUploader(FileUploader):
             f"https://storage.googleapis.com/storage/v1/b/{quote(self.bucket, safe='')}/o/"
             f"{quote(object_name, safe='')}"
         )
+        aiohttp = _aiohttp()
         try:
             headers = await self._headers()
             async with aiohttp.ClientSession(
@@ -497,8 +513,8 @@ class FileManager:
                 from config.google_auth import load_credentials
                 try:
                     uploader.credentials = load_credentials()
-                except DefaultCredentialsError:
-                    logger.warning("[files] 缺少 Google ADC，GCS 上传不可用")
+                except CredentialConfigurationError:
+                    logger.warning("[files] 缺少 Google 服务账号 JSON 凭据，GCS 上传不可用")
                     continue
             credentials = getattr(uploader, 'credentials', None)
             identity = [str(getattr(credentials, attr, '') or '') for attr in

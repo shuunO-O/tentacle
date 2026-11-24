@@ -20,7 +20,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
-from croniter import croniter
 from runtime.timezone import local_datetime, localize
 from runtime.tool_registry import registry
 
@@ -105,6 +104,8 @@ def compute_next_run(trigger_type: str, trigger_expr: str, after: float) -> floa
     once 已过期返回 None；表达式非法抛 ValueError。
     """
     if trigger_type == "cron":
+        from croniter import croniter
+
         if len(trigger_expr.split()) != 5 or not croniter.is_valid(trigger_expr):
             raise ValueError(f"非法 cron 表达式: {trigger_expr}（标准 5 字段，如 0 9 * * 1）")
         itr = croniter(trigger_expr, local_datetime(after))

@@ -65,6 +65,7 @@ def test_unit_separates_working_directory_and_read_only_program(tmp_path):
     assert 'User=tentacle\n' in unit
     assert f'WorkingDirectory={host["home"]}\n' in unit
     assert f'Environment=TENTACLE_HOME={host["home"]}\n' in unit
+    assert 'Environment=MALLOC_ARENA_MAX=2\n' in unit
     assert f'{host["production"]}/current/.venv/bin/python' in unit
     assert f'{host["production"]}/current/run_web.py' in unit
     assert 'EnvironmentFile=' not in unit
