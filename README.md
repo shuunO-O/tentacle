@@ -1,6 +1,6 @@
 # Tentacle
 
-Tentacle 是一个面向 **Linux / WSL** 自托管部署的持久上下文 AI Agent 系统。整个服务以单一进程（[run_web.py](run_web.py)）运行，让 Web 工作台、定时心跳、后台任务、外部消息渠道插件与端侧客户端共享同一连续对话与记忆库，并将只读源码与运行时状态目录彻底隔离。
+Tentacle 是一个面向 **Linux / WSL** 的轻量自托管持久上下文 AI Agent 系统。整个服务以单一进程（[run_web.py](run_web.py)）运行，核心服务不依赖外部数据库或容器运行时即可工作（仅可选的可视化浏览器插件需要 Docker），让 Web 工作台、定时心跳、后台任务、外部消息渠道插件与端侧客户端共享同一连续对话与记忆库，并将只读源码与运行时状态目录彻底隔离。
 
 ## 核心特性
 
@@ -20,6 +20,7 @@ Tentacle 是一个面向 **Linux / WSL** 自托管部署的持久上下文 AI Ag
 
 Tentacle 的运行与部署设计面向 **Linux / WSL**（使用 `systemd` 托管、POSIX 文件锁 `fcntl`、`uvloop` 与 Bash 入口）：
 
+- **硬件与内存参考**：核心服务零外部数据库依赖（SQLite + 内嵌 LadybugDB），可选重依赖按需加载，`systemd` 单元默认启用 `MALLOC_ARENA_MAX=2`；日常主进程常驻约 **280–350 MiB**，可在 **1C1G VPS** 上直接运行（如需同时按需启停 `dsh` 编程子代理或 Docker Neko 可视化浏览器，建议 **2 GiB+** 内存，1 GiB 主机建议开启 `zram` / Swap）
 - **Python 3.13**（Linux 一键安装脚本自动配置独立 `3.13.15` 解释器）
 - **Node.js**（仅从源码构建前端 `frontend/` 时需要，CI 使用 Node 24；基于 Release 包生产部署的主机无需安装）
 - 可选系统工具：见 [音视频输入](docs/MEDIA_INPUTS.md)、[Docker Neko 可视化浏览器](docs/BROWSER_NEKO.md) 与 [DSH 编程台](docs/SUBAGENTS.md)
