@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 SCENARIOS = {"default", "empty", "error", "login", "enroll"}
 TOKEN = "preview-token"
-SETTINGS = {"agent_name": "Tentacle · 开发预览", "show_reasoning": False,
+SETTINGS = {"agent_name": "Tentacle", "show_reasoning": False,
             "split_messages": True, "has_password": False}
 
 
@@ -45,15 +45,198 @@ class PreviewAccess:
 def history(empty=False):
     if empty:
         return []
+    base = 1795401600  # 2026-11-24 10:40:00+08:00 (合成预览时间)
     return [
-        {"id": 1, "round_id": "preview-1", "role": "user", "platform": "harmony", "created_time": 1792022399,
-         "content": "这是一条来自 Harmony 的合成消息。", "images": []},
-        {"id": 2, "round_id": "preview-2", "role": "user", "platform": "web", "created_time": 1792022400,
-         "content": "这是一条合成测试消息，请展示分段和 Markdown。", "images": []},
-        {"id": 3, "round_id": "preview-2", "role": "assistant", "platform": "web", "created_time": 1792022401,
-         "content": "这是开发预览，所有数据都是合成的。\n\n**第二段**，用于检查独立气泡。\n\n```python\nprint('preview')\n```",
-         "segments": ["这是开发预览，所有数据都是合成的。", "**第二段**，用于检查独立气泡。\n\n```python\nprint('preview')\n```"]},
+        {
+            "id": 1, "round_id": "preview-1", "role": "user", "platform": "harmony", "created_time": base,
+            "content": "周末想再去一趟莫干山，上次和周默走完那条环线后顺路去的那家手冲店叫什么来着？",
+            "images": [],
+        },
+        {
+            "id": 2, "round_id": "preview-1", "role": "assistant", "platform": "harmony", "created_time": base + 4,
+            "content": (
+                "从图谱记忆里翻到了上次十月中旬莫干山环线的记录：你们下山后在「拾光」旁边的手冲吧坐了一会儿，主理人是沈青，那天点了水洗耶加雪菲。\n\n"
+                "另外你当时记了一条偏好：**以后轻徒步尽量带 28L 小包，不背三脚架**。这次周末需要我提前帮你查一下莫干山这周的降雨概率吗？"
+            ),
+            "segments": [
+                "从图谱记忆里翻到了上次十月中旬莫干山环线的记录：你们下山后在「拾光」旁边的手冲吧坐了一会儿，主理人是沈青，那天点了水洗耶加雪菲。",
+                "另外你当时记了一条偏好：**以后轻徒步尽量带 28L 小包，不背三脚架**。这次周末需要我提前帮你查一下莫干山这周的降雨概率吗？",
+            ],
+            "usage": {"prompt_tokens": 2480, "completion_tokens": 146, "total_tokens": 2626},
+        },
+        {
+            "id": 3, "round_id": "preview-2", "role": "user", "platform": "web", "created_time": base + 900,
+            "content": "顺便帮我整理一下把服务迁到新 1C2G VPS 的核心检查项，代码改动我晚点直接丢给 dsh 跑。",
+            "images": [],
+        },
+        {
+            "id": 4, "round_id": "preview-2", "role": "assistant", "platform": "web", "created_time": base + 906,
+            "content": (
+                "整理好了，按顺序走完大概十分钟：\n\n"
+                "1. 执行 `sudo python3 scripts/install_linux.py --apply` 初始化隔离目录与 `systemd` 服务\n"
+                "2. 配好 Nginx / Caddy HTTPS 反代（后端保持监听 `127.0.0.1:8420`），或直接走 Tailscale 私有组网\n"
+                "3. 在 WebUI 开启登录密码与设备验证，主机侧跑 `tentacle device gen-code` 绑定常用设备\n"
+                "4. 常用设备绑完后锁定入口，防止未授权扫描：\n\n"
+                "```bash\n"
+                "tentacle device deny-new\n"
+                "tentacle status\n"
+                "```\n\n"
+                "等会儿代码重构的部分你直接在「编程子代理」面板拉起 `dsh` 会话就行，不占用主对话上下文。"
+            ),
+            "segments": [
+                "整理好了，按顺序走完大概十分钟：\n\n"
+                "1. 执行 `sudo python3 scripts/install_linux.py --apply` 初始化隔离目录与 `systemd` 服务\n"
+                "2. 配好 Nginx / Caddy HTTPS 反代（后端保持监听 `127.0.0.1:8420`），或直接走 Tailscale 私有组网\n"
+                "3. 在 WebUI 开启登录密码与设备验证，主机侧跑 `tentacle device gen-code` 绑定常用设备\n"
+                "4. 常用设备绑完后锁定入口，防止未授权扫描：\n\n"
+                "```bash\n"
+                "tentacle device deny-new\n"
+                "tentacle status\n"
+                "```",
+                "等会儿代码重构的部分你直接在「编程子代理」面板拉起 `dsh` 会话就行，不占用主对话上下文。",
+            ],
+            "usage": {"prompt_tokens": 3120, "completion_tokens": 238, "total_tokens": 3358},
+        },
+        {
+            "id": 5, "round_id": "preview-3", "role": "user", "platform": "qq", "created_time": base + 3600,
+            "content": "明早八点提醒我看一下莫干山天气，如果没雨就订车票。",
+            "images": [],
+        },
+        {
+            "id": 6, "round_id": "preview-3", "role": "assistant", "platform": "qq", "created_time": base + 3603,
+            "content": "已经建好明早 `08:00` 的定时唤醒任务，并顺手写进今晚的会话交接近况里，明早到点直接发给你。",
+            "segments": [
+                "已经建好明早 `08:00` 的定时唤醒任务，并顺手写进今晚的会话交接近况里，明早到点直接发给你。",
+            ],
+            "usage": {"prompt_tokens": 3490, "completion_tokens": 62, "total_tokens": 3552},
+        },
     ]
+
+
+def _synthetic_graph():
+    nodes = [
+        # 人物
+        {"id": "person:linlan", "labels": ["Person"],
+         "properties": {"name": "林岚", "role": "主角", "summary": "独立开发者，偏好轻量自托管工具、手冲咖啡与周末山野徒步。"}},
+        {"id": "person:zhoumo", "labels": ["Person"],
+         "properties": {"name": "周默", "role": "徒步搭子", "summary": "经常一起走江浙周边轻徒步线路，擅长规划轨迹与天气研判。"}},
+        {"id": "person:shenqing", "labels": ["Person"],
+         "properties": {"name": "沈青", "role": "咖啡师", "summary": "拾光手冲吧主理人，擅长浅烘埃塞豆冲煮。"}},
+        {"id": "person:chenxu", "labels": ["Person"],
+         "properties": {"name": "陈序", "role": "开源协作者", "summary": "共同讨论 Tentacle 插件权限沙盒与前端架构。"}},
+        # 地点
+        {"id": "loc:moganshan", "labels": ["Location"],
+         "properties": {"name": "莫干山步道", "region": "浙江湖州", "summary": "竹林环线约 12 公里，秋季体感舒适。"}},
+        {"id": "loc:longjing", "labels": ["Location"],
+         "properties": {"name": "西湖龙井村", "region": "浙江杭州", "summary": "雨后茶山视野开阔，适合半日散步。"}},
+        {"id": "loc:pingjiang", "labels": ["Location"],
+         "properties": {"name": "苏州平江路", "region": "江苏苏州", "summary": "临河老街与独立书店聚集地。"}},
+        {"id": "loc:shiguang", "labels": ["Location"],
+         "properties": {"name": "拾光手冲吧", "region": "杭州", "summary": "安静的社区咖啡馆，常备水洗耶加雪菲。"}},
+        {"id": "loc:studio", "labels": ["Location"],
+         "properties": {"name": "居家书房", "region": "杭州", "summary": "日常开发、部署与夜间阅读工作台。"}},
+        # 事件（覆盖 milestone / travel / study / interaction 四种类型）
+        {"id": "evt:vps-live", "labels": ["Event"],
+         "properties": {"name": "单进程服务正式上线", "type": "milestone", "date": "2026-09-18",
+                        "summary": "将图谱记忆从外置 Neo4j 迁入内嵌 LadybugDB，主进程常驻稳定在 300 MiB 左右。",
+                        "source_session": "session-20260918"}},
+        {"id": "evt:moganshan-hike", "labels": ["Event"],
+         "properties": {"name": "莫干山秋季环线徒步", "type": "travel", "date": "2026-10-19",
+                        "summary": "与周默完成 12 公里竹林环线，下山后确认轻装 28L 背包体验最佳。",
+                        "source_session": "session-20261019"}},
+        {"id": "evt:suzhou-weekend", "labels": ["Event"],
+         "properties": {"name": "苏州平江路周末短途", "type": "travel", "date": "2026-10-04",
+                        "summary": "带胶片机扫街并逛了三家旧书店，傍晚在河边喝茶记录笔记。",
+                        "source_session": "session-20261004"}},
+        {"id": "evt:longjing-walk", "labels": ["Event"],
+         "properties": {"name": "雨后龙井茶山散步", "type": "travel", "date": "2026-11-02",
+                        "summary": "午后放晴时独自走过十里琅珰南段，用鸿蒙端语音记下几条灵感。",
+                        "source_session": "session-20261102"}},
+        {"id": "evt:memory-bench", "labels": ["Event"],
+         "properties": {"name": "内嵌图谱检索与内存压测", "type": "study", "date": "2026-10-27",
+                        "summary": "对比每日会话交接与 500k 长上下文成本，验证双路检索召回效果。",
+                        "source_session": "session-20261027"}},
+        {"id": "evt:systems-notes", "labels": ["Event"],
+         "properties": {"name": "Linux systemd 安全加固笔记", "type": "study", "date": "2026-11-08",
+                        "summary": "整理非 root 运行、只读源码与运行时目录隔离以及回退校验流程。",
+                        "source_session": "session-20261108"}},
+        {"id": "evt:coffee-tasting", "labels": ["Event"],
+         "properties": {"name": "手冲耶加雪菲萃取交流", "type": "interaction", "date": "2026-10-20",
+                        "summary": "在拾光与沈青试了 91℃ 三段注水方案，柑橘与白花风味更干净。",
+                        "source_session": "session-20261020"}},
+        {"id": "evt:plugin-review", "labels": ["Event"],
+         "properties": {"name": "插件权限沙盒评审", "type": "interaction", "date": "2026-11-12",
+                        "summary": "与陈序梳理 PluginContext 最小权限门控和扩展路由继承鉴权细节。",
+                        "source_session": "session-20261112"}},
+        # 概念（含一组等价概念，展示图谱等价组与去重联动）
+        {"id": "concept:pourover", "labels": ["Concept"], "equivalence_group": "eq-pourover",
+         "properties": {"name": "手冲咖啡", "equivalence_group": "eq-pourover",
+                        "summary": "偏好浅中烘水洗豆，常用 V60 与三段式注水。"}},
+        {"id": "concept:pourover-en", "labels": ["Concept"], "equivalence_group": "eq-pourover",
+         "properties": {"name": "Pour-over Coffee", "equivalence_group": "eq-pourover",
+                        "summary": "手冲咖啡英文表述，与「手冲咖啡」属于同一等价概念组。"}},
+        {"id": "concept:yirgacheffe", "labels": ["Concept"],
+         "properties": {"name": "耶加雪菲", "summary": "埃塞俄比亚产区，偏爱水洗处理的花香与柠檬酸质。"}},
+        {"id": "concept:selfhost", "labels": ["Concept"],
+         "properties": {"name": "轻量自托管", "summary": "偏好单进程、低内存、零外置数据库与可回退升级的个人服务。"}},
+        {"id": "concept:graph-memory", "labels": ["Concept"],
+         "properties": {"name": "内嵌图谱记忆", "summary": "基于 LadybugDB 持久化实体关系，支持向量与原文双路溯源。"}},
+        {"id": "concept:daily-handoff", "labels": ["Concept"],
+         "properties": {"name": "每日会话交接", "summary": "在固定时间窗口整理近况并开启新会话，控制上下文开销。"}},
+        {"id": "concept:heavy-stack", "labels": ["Concept"],
+         "properties": {"name": "重型多容器架构", "summary": "依赖多套外置数据库与编排组件，在低配 VPS 上维护负担偏重。"}},
+        {"id": "concept:hiking", "labels": ["Concept"],
+         "properties": {"name": "轻量徒步", "summary": "单日 10–15 公里山野环线，控制负重在 28L 背包以内。"}},
+        {"id": "concept:film", "labels": ["Concept"],
+         "properties": {"name": "胶片摄影", "summary": "周末出行偶尔携带便携 35mm 相机记录街景。"}},
+    ]
+    relationships = [
+        # 人物参与事件
+        {"source": "person:linlan", "target": "evt:vps-live", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:moganshan-hike", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:zhoumo", "target": "evt:moganshan-hike", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:suzhou-weekend", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:longjing-walk", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:memory-bench", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:systems-notes", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:coffee-tasting", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:shenqing", "target": "evt:coffee-tasting", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:linlan", "target": "evt:plugin-review", "type": "PARTICIPATED_IN", "properties": {}},
+        {"source": "person:chenxu", "target": "evt:plugin-review", "type": "PARTICIPATED_IN", "properties": {}},
+        # 事件发生地点
+        {"source": "evt:moganshan-hike", "target": "loc:moganshan", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:suzhou-weekend", "target": "loc:pingjiang", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:longjing-walk", "target": "loc:longjing", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:coffee-tasting", "target": "loc:shiguang", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:vps-live", "target": "loc:studio", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:memory-bench", "target": "loc:studio", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:systems-notes", "target": "loc:studio", "type": "OCCURRED_AT", "properties": {}},
+        {"source": "evt:plugin-review", "target": "loc:studio", "type": "OCCURRED_AT", "properties": {}},
+        # 事件提及概念
+        {"source": "evt:vps-live", "target": "concept:selfhost", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:vps-live", "target": "concept:graph-memory", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:vps-live", "target": "concept:heavy-stack", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:memory-bench", "target": "concept:graph-memory", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:memory-bench", "target": "concept:daily-handoff", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:systems-notes", "target": "concept:selfhost", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:plugin-review", "target": "concept:selfhost", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:moganshan-hike", "target": "concept:hiking", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:longjing-walk", "target": "concept:hiking", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:suzhou-weekend", "target": "concept:film", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:coffee-tasting", "target": "concept:pourover", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:coffee-tasting", "target": "concept:pourover-en", "type": "MENTIONS", "properties": {}},
+        {"source": "evt:coffee-tasting", "target": "concept:yirgacheffe", "type": "MENTIONS", "properties": {}},
+        # 人物态度（展示情感倾向标签）
+        {"source": "person:linlan", "target": "concept:selfhost", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+        {"source": "person:linlan", "target": "concept:pourover", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+        {"source": "person:linlan", "target": "concept:yirgacheffe", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+        {"source": "person:linlan", "target": "concept:hiking", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+        {"source": "person:linlan", "target": "concept:film", "type": "HAS_ATTITUDE", "properties": {"sentiment": "中立"}},
+        {"source": "person:linlan", "target": "concept:heavy-stack", "type": "HAS_ATTITUDE", "properties": {"sentiment": "讨厌"}},
+        {"source": "person:zhoumo", "target": "concept:hiking", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+        {"source": "person:shenqing", "target": "concept:yirgacheffe", "type": "HAS_ATTITUDE", "properties": {"sentiment": "喜欢"}},
+    ]
+    return {"nodes": nodes, "relationships": relationships}
 
 
 def create_preview(*, scenario="default", allowed_clients=(), transport="websocket"):
@@ -113,24 +296,28 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
     usage.__init__(str(Path(app.state.usage_temporary.name) / "usage.db"))
     usage_config = {
         "config_version": 2,
-        "providers": {"provider-a": {"label": "示例供应商 A"}, "provider-b": {"label": "示例供应商 B"}},
-        "models": {"a-shared": {"label": "日常模型", "provider": "provider-a"}, "b-shared": {"label": "备用模型", "provider": "provider-b"}},
-        "roles": {"chat": {"label": "主对话"}, "compress": {"label": "压缩"}},
+        "providers": {"provider-a": {"label": "DeepSeek"}, "provider-b": {"label": "Gemini"}},
+        "models": {"a-shared": {"label": "日常主对话", "provider": "provider-a"}, "b-shared": {"label": "多模态 / 备用", "provider": "provider-b"}},
+        "roles": {"chat": {"label": "主对话"}, "compress": {"label": "会话交接与压缩"}, "memory": {"label": "图谱记忆提取"}},
     }
     if scenario != "empty":
-        for days in range(7):
-            for provider, model_id, role, tokens in [
-                ("provider-a", "a-shared", "chat", 1000),
-                ("provider-b", "b-shared", "chat", 2000),
-                ("provider-a", "a-shared", "compress", 500),
-                ("", "", "", 100),
+        daily_scale = [1.15, 0.88, 1.32, 0.96, 1.48, 1.12, 0.76, 1.24, 1.05, 1.41, 0.92, 1.18, 0.85, 1.09]
+        for days, factor in enumerate(daily_scale):
+            for provider, model_id, role, base_prompt, base_comp in [
+                ("provider-a", "a-shared", "chat", 14800, 2100),
+                ("provider-b", "b-shared", "chat", 4200, 680),
+                ("provider-a", "a-shared", "compress", 3100, 520),
+                ("provider-a", "a-shared", "memory", 2400, 390),
             ]:
-                usage._db_insert(time.time() - days * 86400, "synthetic", "shared", tokens, 100,
-                                 tokens + 100, tokens // 2, 0, 0, provider, model_id, role)
+                pt = int(base_prompt * factor)
+                ct = int(base_comp * factor)
+                cached = int(pt * 0.62)
+                usage._db_insert(time.time() - days * 86400, "synthetic", model_id, pt, ct,
+                                 pt + ct, cached, 0, 0, provider, model_id, role)
 
     if scenario != "empty":
-        usage._db_insert(time.time() - 60 * 86400, "synthetic", "shared", 9000, 100, 9100,
-                         4500, 0, 0, "provider-a", "a-shared", "chat")
+        usage._db_insert(time.time() - 60 * 86400, "synthetic", "a-shared", 18000, 2400, 20400,
+                         11200, 0, 0, "provider-a", "a-shared", "chat")
 
     @app.get("/api/usage")
     async def usage_stats(request: Request, granularity: str = "day", window: int | None = None,
@@ -374,17 +561,59 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
         if path == "status":
             if app.state.scenario == "error":
                 raise HTTPException(503, "合成测试：状态读取失败")
-            return {"time": time.time(), "connections": len(app.state.sockets),
-                    "session": {"session_id": "synthetic-preview", "start_time": 1792022400},
-                    "tokens": {"accumulated": 120}, "db": {"raw_messages": len(history(empty))},
-                    "heartbeat": {}, "usage": {}}
+            now = time.time()
+            return {
+                "agent_name": app.state.settings["agent_name"],
+                "time": now,
+                "connections": max(1, len(app.state.sockets)),
+                "session": {
+                    "session_id": "session-20261124-01",
+                    "start_time": now - 14400,
+                    "turn_count": 0 if empty else 12,
+                },
+                "tokens": {"accumulated": 0 if empty else 18420},
+                "db": {
+                    "raw_messages": 0 if empty else 1284,
+                    "sessions": 0 if empty else 42,
+                    "summaries": 0 if empty else 38,
+                    "goals": 0 if empty else 3,
+                    "tasks": 0 if empty else 7,
+                },
+                "heartbeat": {
+                    "enabled": True,
+                    "interval_seconds": 1800,
+                    "next_beat_at": now + 1140,
+                },
+                "usage": {
+                    "today_requests": 0 if empty else 19,
+                    "today_total_tokens": 0 if empty else 24680,
+                },
+            }
+        if path == "maintenance":
+            now = time.time()
+            return {
+                "available": True,
+                "can_update": False,
+                "web_allowed": True,
+                "version": {"version": "v2.2.3", "commit": "a1b2c3d", "built_at": "2026-11-20T08:00:00Z"},
+                "check": {
+                    "ok": True,
+                    "available": False,
+                    "current": "v2.2.3",
+                    "latest": "v2.2.3",
+                    "message": "当前已是最新正式版本",
+                    "data_compatible": True,
+                    "checked_at": now - 1800,
+                },
+                "operation": None,
+            }
         if path == "balance":
             selected = request.query_params.get("provider_id")
             items = [
-                {"provider_id": "provider-a", "label": "示例供应商 A", "ok": True,
+                {"provider_id": "provider-a", "label": "DeepSeek", "ok": True,
                  "is_available": True, "balances": [{"currency": "CNY", "total_balance": "128.50"}],
                  "fetched_at": time.time()},
-                {"provider_id": "provider-b", "label": "示例供应商 B", "ok": False,
+                {"provider_id": "provider-b", "label": "Gemini", "ok": False,
                  "error": "该供应商暂不支持余额查询"},
             ] if not empty else []
             if selected:
@@ -393,12 +622,24 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
                      "error": "该供应商未配置，无法查询余额"}]
             return {"items": items, "synthetic": True}
         if path == "terminal/history":
-            return {"ok": True, "entries": [] if empty else [{"ts": 1792022400, "content": "Synthetic terminal output\r\n"}]}
+            return {"ok": True, "entries": [] if empty else [
+                {"ts": 1795401600, "content": "$ tentacle status\r\n● tentacle.service - Tentacle Personal AI Agent\r\n   Active: active (running) since Tue 2026-11-24 06:00:12 CST\r\n   Memory: 312.4M (max: 1.5G)\r\n\r\n$ tentacle device status\r\n设备验证开关: 开启\r\n新设备入口: 关闭（仅有效已绑定设备可访问）\r\n已绑定设备: 2 台\r\n"},
+            ]}
         if path == "files":
             return {"files": []}
         if path == "auth/devices":
-            return {"device_auth": False, "device_bound": False, "allow_new_devices": True,
-                    "devices": [], "freeze": None, "pending_code": None}
+            now = time.time()
+            return {
+                "device_auth": not empty,
+                "device_bound": not empty,
+                "allow_new_devices": empty,
+                "devices": [] if empty else [
+                    {"id": "dev-macbook-01", "name": "MacBook Pro · Chrome", "created": now - 86400 * 14, "last_seen": now - 45},
+                    {"id": "dev-harmony-02", "name": "Mate 70 · HarmonyOS", "created": now - 86400 * 9, "last_seen": now - 1200},
+                ],
+                "freeze": None,
+                "pending_code": None,
+            }
         if path == "admin/backups":
             return {"items": []}
         if path == "backups/workspace":
@@ -458,19 +699,43 @@ def create_preview(*, scenario="default", allowed_clients=(), transport="websock
         if path == "memory/dedup":
             return {"pairs": [], "counts": {}, "run": None}
         if path == "memory/graph":
-            nodes = [] if empty else [
-                {"id": "preview-person", "labels": ["Person"], "properties": {"name": "测试角色"}},
-                {"id": "preview-concept", "labels": ["Concept"], "properties": {"name": "前端验证"}},
+            return {"ok": True, "data": {"nodes": [], "relationships": []} if empty else _synthetic_graph()}
+        if path == "admin/messages":
+            rows = [] if empty else [
+                [1284, "session-20261124-01", "assistant", "qq", "已经建好明早 08:00 的定时唤醒任务，并顺手写进今晚的会话交接近况里。"],
+                [1283, "session-20261124-01", "user", "qq", "明早八点提醒我看一下莫干山天气，如果没雨就订车票。"],
+                [1282, "session-20261124-01", "assistant", "web", "整理好了把服务迁到新 1C2G VPS 的核心检查项……"],
+                [1281, "session-20261124-01", "user", "web", "顺便帮我整理一下把服务迁到新 1C2G VPS 的核心检查项。"],
+                [1280, "session-20261124-01", "assistant", "harmony", "从图谱记忆里翻到了上次十月中旬莫干山环线的记录……"],
             ]
-            return {"ok": True, "data": {
-                "nodes": nodes,
-                "relationships": [] if empty else [
-                    {"source": "preview-person", "target": "preview-concept", "type": "MENTIONS", "properties": {}}
-                ],
-            }}
-        if path in {"admin/messages", "admin/sessions", "admin/summaries", "admin/goals", "admin/tasks"}:
-            return {"columns": ["id", "content"], "rows": [] if empty else [[1, "合成测试记录"]],
-                    "total": 0 if empty else 1}
+            return {"columns": ["id", "session_id", "role", "platform", "content"], "rows": rows, "total": len(rows)}
+        if path == "admin/sessions":
+            rows = [] if empty else [
+                ["session-20261124-01", "2026-11-24 06:00", "active", 12, 18420],
+                ["session-20261123-01", "2026-11-23 06:00", "handed_off", 26, 31240],
+                ["session-20261122-01", "2026-11-22 06:00", "handed_off", 19, 24180],
+            ]
+            return {"columns": ["session_id", "started_at", "status", "turns", "tokens"], "rows": rows, "total": len(rows)}
+        if path == "admin/summaries":
+            rows = [] if empty else [
+                [38, "2026-11-23", "确认新 VPS 迁移清单与设备鉴权 CLI 方案；规划周末莫干山轻徒步。"],
+                [37, "2026-11-22", "完成插件权限沙盒评审并整理每日会话交接近况。"],
+            ]
+            return {"columns": ["id", "date", "summary"], "rows": rows, "total": len(rows)}
+        if path == "admin/goals":
+            rows = [] if empty else [
+                [1, "完善 Tentacle 文档与开源展示", "active", "2026-11-30"],
+                [2, "周末莫干山秋季环线复走", "active", "2026-11-29"],
+                [3, "完成低配 VPS 安全迁移与回退演练", "completed", "2026-11-18"],
+            ]
+            return {"columns": ["id", "title", "status", "target_date"], "rows": rows, "total": len(rows)}
+        if path == "admin/tasks":
+            rows = [] if empty else [
+                [1, 1, "补充脱敏界面截图并更新 README", "in_progress"],
+                [2, 1, "补齐 tentacle device 命令行入口", "completed"],
+                [3, 2, "周六早八点查看莫干山天气并决定车票", "pending"],
+            ]
+            return {"columns": ["id", "goal_id", "title", "status"], "rows": rows, "total": len(rows)}
         raise HTTPException(404, f"预览尚未模拟此接口：/api/{path}")
 
     app.mount("/static", StaticFiles(directory=ROOT / "web/static", follow_symlink=False, check_dir=False),
