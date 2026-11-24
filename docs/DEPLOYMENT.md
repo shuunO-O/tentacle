@@ -23,7 +23,22 @@ sudo python3 scripts/install_linux.py --apply
 
 省略 `--apply` 可预览目录和账号。安装器校验正式 Release、创建 `tentacle` 系统账号、安装 Python 和独立依赖、启动应用并启用定时检查。指定 `--version vX.Y` 可固定正式版本。已有合适的 root 管理解释器时可加 `--python /absolute/path/to/python3.13`。已准备系统依赖时可加 `--skip-system-packages`。离线首装可用 `--bundle` 指定从可信渠道取得的完整正式附件目录，安装 Python 和依赖仍需可用的包来源。
 
-安装器仅补齐缺失的 Home 文件。默认监听 localhost，默认关闭心跳、QQ 机器人插件（`qqbot`）、鸿蒙客户端插件（`harmony`）和子 Agent。通过 SSH 转发 `8420` 到本机后，在 Web 中配置模型和访问密码。Web 将应用密钥值保存到 `/home/tentacle/config/.env`，文件权限为 `0600`。启用心跳前先确认模型配置。自定义 `--port` 需与迁入配置的监听端口一致。
+安装器仅补齐缺失的 Home 文件。默认监听 `127.0.0.1:8420`，默认关闭心跳、QQ 机器人插件（`qqbot`）、鸿蒙客户端插件（`harmony`）和子 Agent。首次配置可通过 SSH 转发 `8420` 到本机，或在前置 HTTPS 反向代理（Nginx / Caddy）就绪后打开 WebUI 配置模型、登录密码与设备鉴权。Web 将应用密钥值保存到 `/home/tentacle/config/.env`，文件权限为 `0600`。启用心跳前先确认模型配置。自定义 `--port` 需与迁入配置的监听端口一致。
+
+### 远程访问与设备鉴权
+
+面向公网访问时，保持 `tentacle.service` 仅监听本机回环地址，由前置 Nginx / Caddy 提供 HTTPS 反向代理，并同时启用 Web 登录密码与**设备鉴权**；如无需公网暴露，也可搭配 **Tailscale** 等私有组网直接访问。
+
+设备鉴权的一次性绑定码仅能从主机带外生成（WebUI 只能开关总闸或吊销设备，不能扩权发码），可通过 `tentacle device` 管理：
+
+```sh
+tentacle device status                  # 查看设备验证开关、新设备入口、冻结状态与已绑定设备
+tentacle device gen-code 手机           # 生成一次性绑定码（15 分钟有效，用后即焚）
+tentacle device deny-new                # 常用设备绑定完成后关闭新设备入口（未绑定设备一律 403）
+tentacle device allow-new               # 需要绑定新设备时临时重新开放入口（仍需绑定码）
+tentacle device lockout -r "异常排查"   # 紧急冻结：冻结前绑定的全部设备立即失效
+tentacle device unlock                  # 吊销异常设备后解除冻结
+```
 
 首装中断时，修复日志中指出的问题，使用原提交和相同参数重跑。可用 `sudo journalctl -u tentacle.service -n 80 --no-pager` 和 Home 下的应用日志检查启动失败。失败时安装器尝试停止候选服务，保留已构建的版本和 Home 供重试。
 

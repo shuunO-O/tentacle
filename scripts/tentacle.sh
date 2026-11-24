@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-    printf '用法: tentacle [start|restart|stop|status|logs|version|update|revert|check-updates|update-status|browser|help]\n'
+    printf '用法: tentacle [start|restart|stop|status|logs|version|update|revert|check-updates|update-status|device|browser|help]\n'
     printf '  tentacle check-updates              立即检查正式版本，不安装\n'
     printf '  tentacle update-status              离线查看最近检查结果\n'
     printf '  tentacle version                    查看当前生产版本\n'
@@ -11,6 +11,8 @@ usage() {
     printf '  tentacle update --recover            恢复中断的更新\n'
     printf '  tentacle revert [vX.Y]               预览回到上一次成功版本\n'
     printf '  tentacle revert --apply              确认后切换至上一个完整版本并验证\n'
+    printf '  tentacle device <gen-code|status|lockout|unlock|deny-new|allow-new>\n'
+    printf '                                      管理设备鉴权（绑定码 / 状态 / 紧急冻结 / 新设备入口）\n'
     printf '  tentacle browser <install|start|stop|restart|status|logs|credentials|proxy-config|uninstall>\n'
     printf '                                      管理 Docker Neko 可视化浏览器（WebRTC + 本机 CDP）\n'
     exit "${1:-2}"
@@ -80,6 +82,65 @@ case "$action" in
             journalctl -u "$service" -n 80 --no-pager
         else
             sudo journalctl -u "$service" -n 80 --no-pager
+        fi
+        ;;
+    device)
+        script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+        status_root=/usr/local/share/tentacle
+        updater_dir=/usr/local/libexec/tentacle-update
+        app_user=""
+        app_home="${TENTACLE_HOME:-}"
+        helper=""
+        if [ -f "$status_root/host.json" ]; then
+            if ! host_meta=$(/usr/bin/python3 -E -s -c '
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+import update_runtime as rt
+h = rt.host_config(Path(sys.argv[1]))
+print(h["user"])
+print(h["home"])
+print(h["production"])
+' "$status_root" "$updater_dir"); then
+                printf '无法读取主机部署配置 %s/host.json。\n' "$status_root" >&2
+                exit 1
+            fi
+            app_user=$(printf '%s\n' "$host_meta" | sed -n '1p')
+            app_home=$(printf '%s\n' "$host_meta" | sed -n '2p')
+            app_root=$(printf '%s\n' "$host_meta" | sed -n '3p')
+            if [ -f "$app_root/scripts/device_token.py" ]; then
+                helper="$app_root/scripts/device_token.py"
+            fi
+        else
+            for cand in "${TENTACLE_DEVICE_HELPER:-}" "$script_dir/device_token.py" /opt/tentacle/current/scripts/device_token.py; do
+                if [ -n "$cand" ] && [ -f "$cand" ]; then
+                    helper="$cand"
+                    break
+                fi
+            done
+        fi
+        if [ -z "$helper" ]; then
+            printf '未找到 device_token.py，请升级 Tentacle 或检查安装目录。\n' >&2
+            exit 1
+        fi
+        helper_dir=$(CDPATH='' cd -- "$(dirname -- "$helper")" && pwd)
+        py_bin=/usr/bin/python3
+        if [ -x "$helper_dir/../.venv/bin/python" ]; then
+            py_bin="$helper_dir/../.venv/bin/python"
+        fi
+        if [ "$#" -eq 0 ] || [ "${1:-}" = '--help' ] || [ "${1:-}" = '-h' ]; then
+            exec "$py_bin" "$helper" --help
+        fi
+        if [ -n "$app_user" ]; then
+            if [ "$(id -un)" = "$app_user" ]; then
+                exec env "TENTACLE_HOME=$app_home" "$py_bin" "$helper" "$@"
+            else
+                exec sudo -u "$app_user" env "TENTACLE_HOME=$app_home" "$py_bin" "$helper" "$@"
+            fi
+        elif [ -n "$app_home" ]; then
+            exec env "TENTACLE_HOME=$app_home" "$py_bin" "$helper" "$@"
+        else
+            exec "$py_bin" "$helper" "$@"
         fi
         ;;
     browser)

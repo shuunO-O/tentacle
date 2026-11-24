@@ -90,3 +90,18 @@ def test_failed_host_reopen_keeps_policy_closed(paths, monkeypatch):
     with pytest.raises(OSError):
         device_token.cmd_device_policy(SimpleNamespace(command="allow-new"))
     assert not WebSettings(str((paths / "webui_settings.json"))).allow_new_devices
+
+
+def test_tentacle_sh_exposes_device_cli_and_deploy_whitelist():
+    from pathlib import Path
+    from scripts import deploy, release_package
+
+    for rel in ("scripts/device_token.py", "scripts/tentacle.sh"):
+        assert deploy.managed(rel), f"not deploy.managed: {rel}"
+        assert release_package.runtime_name(rel), f"not release_package.runtime_name: {rel}"
+        assert release_package.package_name(rel), f"not release_package.package_name: {rel}"
+
+    script_text = (Path(__file__).resolve().parent.parent / "scripts" / "tentacle.sh").read_text(encoding="utf-8")
+    assert "tentacle device <gen-code|status|lockout|unlock|deny-new|allow-new>" in script_text
+    assert "    device)\n" in script_text
+    assert 'sudo -u "$app_user" env "TENTACLE_HOME=$app_home"' in script_text
