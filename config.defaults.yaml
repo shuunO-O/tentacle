@@ -252,6 +252,17 @@ plugins:
         action_wait_seconds: 12
         allow_alarms: true
         allow_live_view: true
+    health:
+      enabled: false
+      trusted: true
+      config:
+        api_key_env: "INTERVALS_API_KEY"
+        athlete_id: "0"
+        timezone: "Asia/Shanghai"
+        proxy: ""
+        sync_interval_minutes: 60
+        sync_lookback_days: 7
+        request_timeout_seconds: 15
     proton_mail:
       enabled: false
       trusted: true

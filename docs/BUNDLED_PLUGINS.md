@@ -52,6 +52,19 @@ Tentacle 通过 WebUI 的 **插件与 MCP** 页面（`/plugins`）统一管理�
 
 ---
 
+### `health` — 运动健康（[manifest.yaml](../plugins/bundled/health/manifest.yaml)）
+
+默认关闭（`enabled: false`），按需在 `/plugins` 录入 Intervals.icu 个人 API Key 并启用后重启生效。以纯只读方式对接 Intervals.icu REST API（可承接华为运动健康等设备的云端同步），提供工具 **`p_health__health`**（支持 `wellness`、`activities`、`activity_detail`、`sync`、`status`），并将拉取到的全量原始 JSON 归档至 `TENTACLE_HOME/data/plugins/health/health.db`；读取时自动过滤 `null` 与占位字段并附带区间汇总，断网自动回退本地归档。
+
+- **必填凭据环境变量**：默认映射 `INTERVALS_API_KEY`（`api_key_env`），可在 `/plugins` 展开卡片后直接安全写入 `.env`。
+- **常用配置项**：
+  - `athlete_id`：默认 `0`（自动指代当前 API Key 对应账户），也可填写形如 `i123456` 的具体 ID。
+  - `timezone`：计算“今天”与默认查询区间的 IANA 时区（默认 `Asia/Shanghai`）。
+  - `proxy`：显式 HTTP 代理地址，留空直连且不继承进程环境变量代理。
+  - `sync_interval_minutes` / `sync_lookback_days`：后台定时归档间隔（默认 `60` 分钟，设为 `0` 关闭定时任务）与每次回看天数（默认 `7` 天）。
+
+---
+
 ### `proton_mail` — Proton 加密邮箱助手（[manifest.yaml](../plugins/bundled/proton_mail/manifest.yaml) · [README](../plugins/bundled/proton_mail/README.md)）
 
 基于 [proton-cli](https://github.com/roman-16/proton-cli) 访问 Proton 端到端加密邮箱，无需 Proton Bridge 或桌面环境（默认关闭：`enabled: false`）；工具名为 **`p_proton_mail__proton_mail`**，支持 `status`、`list`、`read`（默认读后自动标已读）、`mark_read`、`mark_unread`、`send` 操作，并在 `before_heartbeat` 时自动注入未读邮件简报。
